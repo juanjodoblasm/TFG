@@ -1,0 +1,220 @@
+---
+title: "Análisis exploratorio"
+author: Juanjo Doblas
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+editor: visual
+execute:
+  echo: false
+  message: false
+---
+
+## 1 - Introducción
+
+En este documento realizaremos un análisis exploratorio de los datos que se encuentran en el archivo `causas_muerte.xls`.
+
+Esta tabla de datos contiene información sobre las causas de muerte en la mayoría de países del mundo desde el año 1990 hasta el 2019, así como algunas covariables.
+
+Primero de todo cargaremos las librerías necesarias para realizar el análisis.
+
+```{r librerias, include=FALSE}
+library(readxl)
+library(tidyverse)
+library(compositions)
+library(psych)
+```
+
+Ahora, carguemos nuestra base de datos y presentemos un resumen.
+
+```{r dataset, warning=FALSE}
+data <- read_excel("causas_muerte.xls") %>% 
+  # Transformamos la variable año en ordinal
+  mutate(año = as.ordered((año)))
+
+data %>% glimpse
+```
+
+### 1.1 - Descripción de las variables
+
+Realicemos una pequeña descripción de cada variable:
+
+-   *pais*: país del que proceden los datos. Veamos cuántos países se recogen.
+
+```{r numero paises}
+data[, "pais"] %>% unique
+```
+
+-   *codigo_Pais*: código de 3 letras para los nombres de los países según la norma ISO 3166-1 alfa-3.
+
+-   *año*: año en el que se recogen los datos. Veamos que no falta ningún año en ningún país desde 1990 hasta 2019. Lo veremos en la siguiente tabla que recoge el número de muestras, y por tanto de países, por cada año.
+
+```{r paises años}
+data[, "año"] %>% table
+```
+
+-   *población*: número de habitantes de cada país en cada año.
+
+Las variables desde la columna *meningitis* hasta *hepatitis_aguda* recogen el número de muertes por la causa que da nombre a la variable en cada país y cada año. Nos interesa saber cuantos conteos de ceros hay en cada variable. Lo vemos en la siguiente tabla:
+
+```{r conteo ceros}
+causas_muerte <- data %>% select(meningitis:hepatitis_aguda) 
+
+tabla_ceros <- causas_muerte%>% summarise(across(everything(), ~ sum(. == 0)))
+
+tabla_ceros %>% glimpse
+```
+
+```{r porcentaje ceros}
+100*sum(tabla_ceros) / (nrow(causas_muerte)*ncol(causas_muerte))
+```
+
+Observamos que en las causas de muerte hay aproximadamente un 7,78% de ceros. Sin embargo, en algunas variables este porcentaje supera el 50%, por lo que estamos ante un modelo con exceso de ceros o *ZI* (por sus siglas en inglés *Zero-inflated model*). Esta característica la tendremos que tener en cuenta en el análisis.
+
+-   *pib*: producto interior bruto en millones de dólares. Expresa el valor monetario de la producción de bienes y servicios de demanda final.
+
+-   *idh*: índice de desarrollo humano. Se calcula en base a la esperanza de vida, el nivel de educación y el ingreso per cápita.
+
+-   *esperanza_vida_m*: esperanza de vida de las mujeres en años.
+
+-   *esperanza_vida_h*: esperanza de vida de los hombres en años.
+
+-   *esperanza_vida*: esperanza de vida de la población en años.
+
+-   *emisiones_CO2*: cantidad de CO2 emitido en millones de toneladas.
+
+-   *emisiones_CO2_PIB*: cantidad de CO2 emitido por cada 1000 dólares de PIB en kilogramos.
+
+-   *emisiones_CO2_per_capita*: cantidad de CO2 emitido per cápita en toneladas.
+
+
+
+## 2 - Tratamiento de datos composicionales
+
+Las variables que nos dan información sobre las causas de muerte tienen naturaleza composicional. En efecto, todas las entradas son positivas, ya que son conteos de muertes; y la única información relevante en cada fila es la contenida en su vector de proporciones, ya que este nos da el porcentaje de muertes por cada causa.
+
+Antes de poder aplicar técnicas de análisis de datos composicionales hay que tratar los datos siguiendo los pasos siguientes:
+
+1.    Se sustituyen (*imputan*) los ceros.
+
+2.    Se transforman logarítmicamente los datos.
+
+### 2.1 - Imputación de ceros
+
+Hay varias estrategias para imputar ceros. Nosotros sustituiremos los ceros por 0,65 ya que el porcentaje de ceros es menor al 10%.
+
+```{r imputacion ceros}
+causas_muerte_imp <- causas_muerte %>% mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
+```
+
+### 2.2 - Transformación CLR
+
+Utilizaremos la transformación logarítmica centrada, que consiste en dividir cada entrada por la media geométrica de la fila y aplicarle un logaritmo.
+
+```{r transformacion clr}
+causas_muerte_clr <- causas_muerte_imp %>% clr %>% as_tibble()
+data_clr <- data
+data_clr[, 5:35] <- causas_muerte_clr
+
+causas_muerte_clr %>% glimpse
+```
+
+## 3 - Matriz de correlaciones
+
+Analicemos la matriz de correlaciones de las causas de muerte y las covariables:
+
+```{r matriz correlacion, fig.height=15, fig.width=30}
+data_clr %>%
+  select(where(is.numeric)) %>%
+  cor(.) %>% 
+  corPlot(., cex = 1, xsrt = 30, cex.axis = 1, main = "Matriz de correlaciones")
+```
+
+Fijémonos  primero en las correlaciones entre causas de muerte y covariables.
+
+Las variables *poblacion*, *pib*, y las relacionadas con emisiones de CO2 apenas tienen correlación con las causas de muerte. Las únicas correlaciones que superan o igualan $0.5$ en valor absoluto son emisiones de CO2 per cápita con las causas trastornos como consecuencia de drogas y lesiones en carretera.
+
+Por otro lado, tenemos las variables que explican la esperanza de vida, incluido el IDH ya que la esperanza de vida es un factor importante a la hora de calcular el índice y se puede ver en la alta correlación entre el IDH y la esperanza de vida. Estas variables están altamente correlacionadas con muchas causas de muerte, tanto positivamente como negativamente. Veamos a qué se podría deber esto. Normalmente, la poca esperanza de vida se suele asociar a países pocos desarrollados y podemos ver en las correlaciones negativas las enfermedades que suelen ser comunes en estos países: meningitis, deficiencias nutricionales, malaria, enfermedades diarreicas, etc. Luego, en las correlaciones positivas, podemos ver enfermedades asociadas con la vejez: alzheimer, parkinson y enfermedades cardiovasculares, así como trastornos como consecuencia de drogas o alcohol, autolesiones, neoplasias (cánceres), enfermedades crónicas, etc.
+
+Por último, vemos que hay algunas enfermedades bastante correlacionadas y otras que no. La correlación positiva que más destaca es entre alzheimer y parkinson, con un valor de $0.96$; mientras que la correlación negativa más destacada es entre neoplasias y trastornos maternos, con un valos de $-0.89$. Las dos correlaciones más pequeñas con un valor de $-0.00$ corresponden a exposición a fuerzas de la naturaleza con exposición al ambiente y temperatura; e infecciones respiratorias con malaria.
+
+## 4 - Tendencias temporales
+
+En este apartado vamos a estudiar de manera global las tendencias temporales de cada enfermedad.
+
+Vamos a trabajar con un tibble donde sumaremos todas las causas por cada año, con lo que nos quedarán $30$ filas, una para cada año, y los conteos serán mundiales.
+
+```{r data mundial}
+causas_muerte_global <- data %>% select(año, meningitis:hepatitis_aguda) %>% group_by(año) %>% summarise(across(everything(), ~ sum(.)), .groups = "drop")
+
+causas_muerte_global %>% glimpse
+```
+
+Ahora lo transformamos en una serie temporal y elaboramos los gráficos.
+
+```{r serie temporal}
+causas_muerte_global.ts <- ts(causas_muerte_global[-1], start = c(1990), end = c(2019), frequency = 1)
+```
+
+```{r graficos 1, fig.height=10, fig.width=10}
+plot.ts(causas_muerte_global.ts[, 1:10], main = "")
+```
+
+En estos primeros diez gráficos podemos observar un claro descenso constante del número de muertes por meningitis, deficiencias nutricionales, ahogo y transtornos maternos. A partir del 2010 también hay un descenso de las muertes por malaria. Por otro lado, hay un aumento constante de las muertes por alzheimer, parkinson y trantornos por consecuencia de drogas. Luego, el VIH alcanzó el máximo de muertes en 2004 y desde entonces han ido bajando. De forma similar, las muertes por violencia interpersonal alcanzaron el máximo en 2002 y después bajaron hasta mantenerse alrededor de 420000 muertes, un número superior a las 380000 muertes en 1990.
+
+
+```{r graficos 2, fig.height=10, fig.width=10}
+plot.ts(causas_muerte_global.ts[, 11:20], main = "")
+```
+
+Aquí podemos apreciar el descenso de muertes en tuberculosis, infecciones respiratorias, trastornos neonatales y enfermedades diarreicas. En cuanto ascenso de muertes podemos ver las causas enfermedades cardiovasculares, trastornos como consecuencia del alcohol y neoplasias. Por otro lado, las autolesiones y exposiciones al ambiente y temperatura tuvieron una subida con posterior bajada de tal forma que en 2019 hay los mismos conteos que en 1990 aproximadamente. Cabe destacar el caso de la exposición a las fuerzas de la naturaleza, con un nivel aproximadamente constante por debajo de 50000 exceptuando algunos años que rozan las 250000 muertes.
+
+
+```{r graficos 3, fig.height=7, fig.width=10}
+plot.ts(causas_muerte_global.ts[, 21:26], main = "")
+```
+
+```{r graficos 4, fig.height=6, fig.width=10}
+plot.ts(causas_muerte_global.ts[, 27:31], main = "")
+```
+
+En estos últimos once gráficos podemos ver un ascenso en diabetes mellitus, enfermedades crónicas, cirrosis crónicas, enfermedades digestivas y lesiones carretera, aunque esta última ha bajado con respecto a los últimos diez años. También vemos un descenso en envenenamientos, desnutriciones energéticas, exposición al fuego y sustancias calientes y hepatitis aguda. Las causas por conflictos terroristas han mantenido un nivel relativamente constante alrededor de 10000 muertes con un pico en 50000 en el año 1994.
+
+## 5 - Análisis en coordenadas principales
+
+Por último, realicemos un análisis en coordenadas principales (o escalamiento multidimensional). Este análisis se hará sobre las causas de muerte. Por su naturaleza composicional, no podemos utilizar las distancias Euclídea o de Manhattan. En su lugar, utilizaremos la distancia de Aitchison, que es la distancia Euclídea entre dos muestras después de aplicar la transformación CLR. Mostremos las distancias entre los primeros 8 elementos de la tabla.
+
+```{r matriz distancias}
+causasdist <- dist(causas_muerte_clr)
+as.matrix(causasdist)[1:8, 1:8]
+```
+
+Ahora, aplicamos el método de coordenadas principales con la función de R `cmdscale`, usando la matriz de distancias anterior y especificando $k = 2$ (dos componentes principales).
+
+
+```{r mds}
+# Tarda mucho
+#causas_mds <- cmdscale(causasdist, k = 2) %>% 
+ # as_tibble()
+
+#causas_mds %>% 
+ # slice_head(n = 15)
+```
+
+Por último, calculemos los coeficientes de precisión a partir de los valores propios de la matriz de productos cruzados.
+
+```{r precision}
+Q = as.matrix(causas_muerte_clr) %*% t(as.matrix(causas_muerte_clr))
+
+# Tarda mucho
+#vaps = eigen(Q)$values
+
+#m_12 = (sum(abs(vaps[1:2])) / sum(abs(vaps))) * 100
+
+
+#m_22 = (sum(vaps[1:2]^2)/ sum(vaps^2)) * 100
+```
+
+-   $m_{1,2} =$ `#m_12`
+-   $m_{2,2} =$ `#m_22`
