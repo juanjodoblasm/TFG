@@ -88,17 +88,15 @@ Observamos que en las causas de muerte hay aproximadamente un 7,78% de ceros. Si
 
 -   *emisiones_CO2_per_capita*: cantidad de CO2 emitido per cápita en toneladas.
 
-
-
 ## 2 - Tratamiento de datos composicionales
 
 Las variables que nos dan información sobre las causas de muerte tienen naturaleza composicional. En efecto, todas las entradas son positivas, ya que son conteos de muertes; y la única información relevante en cada fila es la contenida en su vector de proporciones, ya que este nos da el porcentaje de muertes por cada causa.
 
 Antes de poder aplicar técnicas de análisis de datos composicionales hay que tratar los datos siguiendo los pasos siguientes:
 
-1.    Se sustituyen (*imputan*) los ceros.
+1.  Se sustituyen (*imputan*) los ceros.
 
-2.    Se transforman logarítmicamente los datos.
+2.  Se transforman logarítmicamente los datos.
 
 ### 2.1 - Imputación de ceros
 
@@ -131,7 +129,7 @@ data_clr %>%
   corPlot(., cex = 1, xsrt = 30, cex.axis = 1, main = "Matriz de correlaciones")
 ```
 
-Fijémonos  primero en las correlaciones entre causas de muerte y covariables.
+Fijémonos primero en las correlaciones entre causas de muerte y covariables.
 
 Las variables *poblacion*, *pib*, y las relacionadas con emisiones de CO2 apenas tienen correlación con las causas de muerte. Las únicas correlaciones que superan o igualan $0.5$ en valor absoluto son emisiones de CO2 per cápita con las causas trastornos como consecuencia de drogas y lesiones en carretera.
 
@@ -163,13 +161,11 @@ plot.ts(causas_muerte_global.ts[, 1:10], main = "")
 
 En estos primeros diez gráficos podemos observar un claro descenso constante del número de muertes por meningitis, deficiencias nutricionales, ahogo y transtornos maternos. A partir del 2010 también hay un descenso de las muertes por malaria. Por otro lado, hay un aumento constante de las muertes por alzheimer, parkinson y trantornos por consecuencia de drogas. Luego, el VIH alcanzó el máximo de muertes en 2004 y desde entonces han ido bajando. De forma similar, las muertes por violencia interpersonal alcanzaron el máximo en 2002 y después bajaron hasta mantenerse alrededor de 420000 muertes, un número superior a las 380000 muertes en 1990.
 
-
 ```{r graficos 2, fig.height=10, fig.width=10}
 plot.ts(causas_muerte_global.ts[, 11:20], main = "")
 ```
 
 Aquí podemos apreciar el descenso de muertes en tuberculosis, infecciones respiratorias, trastornos neonatales y enfermedades diarreicas. En cuanto ascenso de muertes podemos ver las causas enfermedades cardiovasculares, trastornos como consecuencia del alcohol y neoplasias. Por otro lado, las autolesiones y exposiciones al ambiente y temperatura tuvieron una subida con posterior bajada de tal forma que en 2019 hay los mismos conteos que en 1990 aproximadamente. Cabe destacar el caso de la exposición a las fuerzas de la naturaleza, con un nivel aproximadamente constante por debajo de 50000 exceptuando algunos años que rozan las 250000 muertes.
-
 
 ```{r graficos 3, fig.height=7, fig.width=10}
 plot.ts(causas_muerte_global.ts[, 21:26], main = "")
@@ -191,7 +187,6 @@ as.matrix(causasdist)[1:8, 1:8]
 ```
 
 Ahora, aplicamos el método de coordenadas principales con la función de R `cmdscale`, usando la matriz de distancias anterior y especificando $k = 2$ (dos componentes principales).
-
 
 ```{r mds}
 # Tarda mucho
