@@ -186,33 +186,11 @@ En estos últimos once gráficos podemos ver un ascenso en diabetes mellitus, en
 
 ## 5 - Análisis en componentes principales
 
-Ahora, realicemos un análisis en componentes principales (ACP). Nos restringiremos a los datos que proporcionan los países europeos y a algunas causas de muerte. El criterio de elección es coger las principales causas de defunción según la ONU en [este artículo](https://www.who.int/es/news-room/fact-sheets/detail/the-top-10-causes-of-death). La ONU separa estas causas según la clasificación del Banco mundial del ingreso de los países que se puede ver [aquí](https://blogs.worldbank.org/es/opendata/clasificacion-de-paises-del-banco-mundial-por-nivel-de-ingreso-2024-25). Europa está compuesto mayoritariamente por países con ingresos altos, exceptuando algunos países en la región de los balcanes y europa oriental, por lo que escogemos las diez principales causas de defunción en los países con ingresos altos, que son:
+En este apartado realizaremos un análisis en componentes principales (ACP). Nos restringiremos a los datos que proporcionan los países europeos. Primero vamos a filtrar los países de este continente en nuestra base de datos.
 
-1.  Cardiopatía isquémica
-2.  Enfermedad de Alzheimer y otras demencias
-3.  Parkinson
-4.  Accidente cerebrovascular
-5.  Cáncer de tráquea, bronquios y pulmón
-6.  Enfermedad pulmonar obstructiva crónica (EPOC)
-7.  Cáncer de colon y recto
-8.  Nefropatías
-9.  Cardiopatía hipertensiva
-10. Diabetes mellitus
-
-En las variables que tenemos en nuestra base de datos, estas causas se pueden agrupar en las siguientes variables:
-
-1.  *enf_cardiovasculares*
-2.  *alzheimer*
-3.  *neoplasias*
-4.  *infecciones_respi*
-5.  *enfermedad_crónica*
-6.  *diabetes_mellitus*
-
-Creemos un nuevo subconjunto de datos restringiéndonos a países europeos y estas causas de muerte. Será un subconjunto de los datos con la transformación *clr* aplicada. Además, vamos a centrar estos datos, es decir, a restar la media de su respectiva columna.
-
-```{r datos ACP}
+```{r datos europa}
 # Lista de países de Europa
-paises_europa <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán", 
+paises_eu <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán", 
                    "Bélgica", "Bielorrusia", "Bosnia-Herzegovina", "Bulgaria", 
                    "Chipre", "Croacia", "Dinamarca", "Eslovaquia", "Eslovenia", 
                    "España", "Estonia", "Finlandia", "Francia",
@@ -223,79 +201,324 @@ paises_europa <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán",
                    "Republica Checa", "República de Macedonia", "Rumania", "Rusia",
                    "Serbia", "Suecia", "Suiza", "Turquía", "Ucrania")
 
-# Lista de causas de muerte
-causas_muerte_acp = c("enf_cardiovasculares", "alzheimer", "neoplasias",
-                      "infecciones_respi", "enfermedad_crónica", "diabetes_mellitus")
-
 # Filtramos los datos
-data_ACP <- data_clr %>%
-  filter(pais %in% paises_europa) %>%
-  dplyr::select(pais, all_of(causas_muerte_acp))
+data_eu <- data %>% filter(pais %in% paises_eu)
+```
 
-# Número de filas
-n = nrow(data_ACP)
+Antes de realizar el ACP veamos cómo se distribuyen las muertes totales por año.
+
+```{r distribucion muertes por año, fig.width=15, fig.height=10}
+total_muertes_año_eu <- data_eu %>% select(año, meningitis:hepatitis_aguda) %>% group_by(año) %>% summarise(across(everything(), ~ sum(.)))
+
+total_muertes_año_eu %>% 
+  pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
+  ggplot(aes(x = causa_muerte, y = muerte)) +
+  geom_violin(trim = FALSE, fill = "lightblue", width = 2) +
+  #geom_boxplot(width = 0.1, color = "black", alpha = 0.6) +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(x = "Causa de muerte", y = "Número de muertes") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Como podemos ver, hay algunas causas de defunción que apenas causan impacto. Por ello, con el objetivo de reducir dimensionalidad, vamos a agruparlas siguiendo el criterio de la OMS en [este enlace](https://icd.who.int/browse/2024-01/mms/en). Los grupos que nos quedan son los siguientes:
+
+-   Enfermedades infecciosas o parasitarias (*enf_infec_paras*). En este grupo incluimos *meningitis*, *malaria*, *VIH* y *tuberculosis*.
+
+-   Enfermedades del sistema nervioso (*enf_sist_nervioso*). En este grupo incluimos *alzheimer* y *parkinson*.
+
+-   Enfermedades endocrinas, nutricionales o metabólicas (*enf_metabolicas*). En este grupo incluimos *def_nutricionales*, *diabetes_mellitus* y *desnutrición_energetica*.
+
+-   Otras causas (*otras_causas*). En este grupo incluimos *ahogo* y *violencia_inter*.
+
+-   Embarazo, parto o puerperio (*trastornos_maternos*). En este grupo incluimos *trastornos_maternos*.
+
+-   Trastornos mentales, del comportamiento o del desarrollo neurológico (*trastornos_mentales*). En este grupo incluimos *trastornos_cons_drogas* y *trastornos_Cons_alcohol*.
+
+-   Enfermedades del sistema circulatorio (*enf_cardiovasculares*). En este grupo incluimos *enf_cardiovasculares*.
+
+-   Enfermedades del sistema respiratorio (*infecciones_respi*). En este grupo incluimos *infecciones_respi*.
+
+-   Afecciones originadas en el período perinatal (*trastornos_neonatales*). En este grupo incluimos *trastornos_neonatales*.
+
+-   Causas externas de morbilidad o mortalidad (*causas_externas*). En este grupo incluimos *autolesiones*, *exp_fuer_naturaleza*, *conflicto_terrorismo* y *lesiones_carretera*.
+
+-   Enfermedades del sistema digestivo (*enf_sist_digestivo*). En este grupo incluimos *enf_diarreicas*, *cirrosis_crónicas*, *enfermedades_digestivas* y *hepatitis_aguda*.
+
+-   Lesiones, envenenamientos u otras consecuencias de causas externas (*envenenamientos_exposiciones*). En este grupo incluimos *exp_amb_temperatura*, *envenenamientos* y *fuego_calientes*.
+
+-   Neoplasias (*neoplasias*). En este grupo incluimos *neoplasias*.
+
+-   Enfermedades crónicas (*enf_cronicas*). En este grupo incluimos *enfermedad_crónica* y *enfermedades_cronicas*.
+
+```{r dudas clasificacion}
+# Como se en que grupo esta. p.e. ahogo
+# como diferencio causas externas de morbilidad o mortalidad con lesiones, envenenamientos u otras consecuencias de causas externas. Las agrupo en uno?
+```
+
+Creemos la nueva base de datos con las causas de muerte agrupadas.
+
+```{r causas agrupadas}
+data_eu_agrupado <- data_eu %>%
+  mutate(
+    enf_infec_paras = rowSums(select(., meningitis, malaria, VIH, tuberculosis)),
+    enf_sist_nervioso = rowSums(select(., alzheimer, parkinson)),
+    enf_metabolicas = rowSums(select(., def_nutricionales, diabetes_mellitus, 
+                                     desnutrición_energetica)),
+    otras_causas = rowSums(select(., ahogo, violencia_inter)),
+    trastornos_mentales = rowSums(select(., trastornos_cons_drogas, trastornos_Cons_alcohol)),
+    causas_externas = rowSums(select(., autolesiones, exp_fuer_naturaleza, conflicto_terrorismo,
+                                     lesiones_carretera)),
+    enf_sist_digestivo = rowSums(select(., enf_diarreicas, cirrosis_crónicas,
+                                        enfermedades_digestivas, hepatitis_aguda)),
+    envenenamientos_exposiciones = rowSums(select(., exp_amb_temperatura, envenenamientos,
+                                                  fuego_calientes)),
+    enf_cronicas = rowSums(select(., enfermedad_crónica, enfermedades_cronicas)),
+    .after = poblacion
+  ) %>%
+  select(-meningitis, -malaria, -VIH, -tuberculosis,
+         -alzheimer, -parkinson,
+         -def_nutricionales, -diabetes_mellitus, -desnutrición_energetica,
+         -ahogo, -violencia_inter,
+         -trastornos_cons_drogas, -trastornos_Cons_alcohol,
+         -autolesiones, -exp_fuer_naturaleza, -conflicto_terrorismo, -lesiones_carretera,
+         -enf_diarreicas, -cirrosis_crónicas, -enfermedades_digestivas, -hepatitis_aguda,
+         -exp_amb_temperatura, -envenenamientos, -fuego_calientes,
+         -enfermedad_crónica, -enfermedades_cronicas) %>% 
+  relocate(trastornos_maternos, .after = otras_causas) %>%
+  relocate(enf_cardiovasculares:trastornos_neonatales, .after = trastornos_mentales) %>%
+  relocate(neoplasias, .after = envenenamientos_exposiciones)
+```
+
+Veamos de nuevo cómo se distribuyen las muertes totales por año, ahora con la nueva agrupación.
+
+```{r distribucion muertes agrupadas por año, fig.height=10}
+total_muertes_agrupadas_año_eu <- data_eu_agrupado %>% select(año, enf_infec_paras:enf_cronicas) %>% group_by(año) %>% summarise(across(everything(), ~ sum(.)))
+
+total_muertes_agrupadas_año_eu %>% 
+  pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
+  ggplot(aes(x = causa_muerte, y = muerte)) +
+  geom_violin(trim = FALSE, fill = "lightblue", width = 2) +
+  #geom_boxplot(width = 0.1, color = "black", alpha = 0.6) +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(x = "Causa de muerte", y = "Número de muertes") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Ahora sí, realicemos el ACP. Haremos un primer análisis con un conjunto de datos donde para cada país tendremos la mediana de cada causa de muerte con respecto al tiempo. Construyamos primero este conjunto de datos.
+
+```{r mediana temporal muertes}
+data_eu_agrupado_medianas <- data_eu_agrupado %>%
+  group_by(pais) %>%
+  summarise(across(enf_infec_paras:enf_cronicas, median)) %>%
+  ungroup() 
+```
+
+Ahora, le aplicaremos la transformación *clr* y centraremos los datos. Notemos que no va a hacer falta imputar ceros ya que en ningún grupo de causas la mediana es 0. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Empecemos con los datos sin escalar.
+
+```{r mediana temporal muertes clr}
+data_eu_g_m_clr <- data_eu_agrupado_medianas
+
+data_eu_g_m_clr[, 2:15] <- data_eu_agrupado_medianas[, 2:15] %>% clr %>% as_tibble
+
+n = nrow(data_eu_g_m_clr)
 
 # Matriz de centrado
 Hn = diag(n) - 1/n
 
 # Datos centrados
-data_cen = Hn %*% as.matrix(data_ACP[, 2:7]) %>% as_tibble() %>% add_column(., pais = data_ACP$pais, .before = 1)
-
-data_cen %>% glimpse
+data_cen <- Hn %*% as.matrix(data_eu_g_m_clr[, 2:15]) %>%
+  as_tibble() %>%
+  mutate(pais = data_eu_g_m_clr$pais, .before = enf_infec_paras)
 ```
 
-Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
+Pasemos al estudio de las componentes principales. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
+
+```{r matriz covarianzas}
+S = cov(data_cen[, 2:15])
+S
+```
 
 ```{r ACP}
-datos_pca = prcomp(data_cen[, 2:7], scale = FALSE)
+data_ACP = prcomp(data_cen[, 2:15], scale = FALSE)
+data_ACP_scaled = prcomp(data_cen[, 2:15], scale = TRUE)
+
+rownames(data_ACP$x) <- unique(data_eu$codigo_Pais)
+rownames(data_ACP_scaled$x) <- unique(data_eu$codigo_Pais)
 ```
 
 ```{r veps}
-veps = datos_pca$rotation
+veps = data_ACP$rotation
+veps_scaled = data_ACP_scaled$rotation
+
+cat("Vectores propios (datos sin escalar)\n")
 veps
+cat("Vectores propios (datos escalados)\n")
+veps_scaled
 ```
 
+En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable *trastornos_maternos* y la segunda componente principal da peso a las variables *envenamientos_ecposiciones*, *otras_causas* y *enf_metabolicas*, en ese orden.
+
+Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan peso a casi todas las variables.
+
 ```{r vaps}
-vaps = get_eigenvalue(datos_pca)
+vaps = get_eigenvalue(data_ACP)
+vaps_scaled = get_eigenvalue(data_ACP_scaled)
+
+cat("Valores propios (datos sin escalar)\n")
 vaps
+cat("Valores propios (datos escalados)\n")
+vaps_scaled
 ```
 
 ```{r porcentajes variacion}
-fviz_eig(datos_pca, addlabels = TRUE, ylim = c(0,100))
+cat("Datos sin escalar\n")
+fviz_eig(data_ACP, addlabels = TRUE, ylim = c(0,100))
+cat("Datos escalados\n")
+fviz_eig(data_ACP_scaled, addlabels = TRUE, ylim = c(0,100))
 ```
 
-```{r circulo correlacion dim1-dim2}
-circ_cor <- fviz_pca_var(datos_pca, col.var = "contrib", repel = TRUE, axes = 1:2)
+En ambos casos, a partir de la tabla y el gráfico podemos elegir tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Sin embargo, con los datos sin escalar explicamos el $82,65\%$ de la variación y con los datos escalados el $73,74\%$. Representemos estas variables en el espacio.
 
+```{r circulo correlacion dim1-dim2, fig.height=10, fig.width=10}
+circ_cor <- fviz_pca_var(data_ACP, col.var = "contrib", repel = TRUE, axes = 1:2, title="Sin escalar")
+circ_cor_scaled <- fviz_pca_var(data_ACP_scaled, col.var = "contrib", repel = TRUE, axes = 1:2, title = "Escalado")
 circ_cor
+circ_cor_scaled
 ```
 
-```{r representacion individuos, fig.height=9, fig.width=8}
-autoplot(datos_pca, data = data_cen, loadings = TRUE, loadings.colour = 'blue', loadings.label = TRUE, loadings.label.size = 3, label = FALSE, colour = 'pais') + theme(legend.position = "bottom")
+```{r biplots dim1-dim2, fig.height=10, fig.width=10}
+fviz_pca_biplot(data_ACP, col.var = "contrib", repel = TRUE, axes = 1:2, title="Sin escalar")
+
+fviz_pca_biplot(data_ACP_scaled, col.var = "contrib", repel = TRUE, axes = 1:2, title = "Escalado")
+
 ```
-
-
-
-
-
-
-
-
-
-
-
 
 ```{r pruebas}
-# Por qué no es igual que data_ACP
+#suma = 0
+#variable = "infecciones_respi"
+#año = 2007
+#for (i in 1:nrow(data_europa)) {
+#  if (data_europa[i, "año"] == año)
+#    suma = suma + data_europa[i, variable]
+#}
+#print(suma)
+```
 
-data2 <- data %>% filter(pais %in% paises_europa) %>% dplyr::select(all_of(causas_muerte_acp))
+```{r ACP_anterior}
+#Ahora, realicemos un análisis en componentes principales (ACP). Nos restringiremos a los datos que #proporcionan los países europeos y a algunas causas de muerte. El criterio de elección es coger las #principales causas de defunción según la ONU en [este #artículo](https://www.who.int/es/news-room/fact-sheets/detail/the-top-10-causes-of-death). La ONU #separa estas causas según la clasificación del Banco mundial del ingreso de los países que se puede #ver [aquí](https://blogs.worldbank.org/es/opendata/clasificacion-de-paises-del-banco-mundial-por-niv#el-de-ingreso-2024-25). Europa está compuesto mayoritariamente por países con ingresos altos, #exceptuando algunos países en la región de los balcanes y europa oriental, por lo que escogemos las #diez principales causas de defunción en los países con ingresos altos, que son:
+#
+#1.  Cardiopatía isquémica
+#2.  Enfermedad de Alzheimer y otras demencias
+#3.  Accidente cerebrovascular
+#4.  Cáncer de tráquea, bronquios y pulmón
+#5.  Enfermedad pulmonar obstructiva crónica (EPOC)
+#6.  Infecciones de las vías respiratorias inferiores
+#7.  Cáncer de colon y recto
+#8.  Nefropatías
+#9.  Cardiopatía hipertensiva
+#10. Diabetes mellitus
+#
+#En las variables que tenemos en nuestra base de datos, estas causas se pueden agrupar en las #siguientes variables:
+#
+#1.  *enf_cardiovasculares*
+#2.  *alzheimer*
+#3.  *neoplasias*
+#4.  *infecciones_respi*
+#5.  *enfermedad_crónica*
+#6.  *diabetes_mellitus*
+#
+#Creemos un nuevo subconjunto de datos restringiéndonos a países europeos y estas causas de muerte. #Será un subconjunto de los datos con la transformación *clr* aplicada. Además, vamos a centrar estos #datos, es decir, a restar la media de su respectiva columna.
+#
+#{r datos ACP}
+## Lista de países de Europa
+#paises_europa <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán", 
+#                   "Bélgica", "Bielorrusia", "Bosnia-Herzegovina", "Bulgaria", 
+#                   "Chipre", "Croacia", "Dinamarca", "Eslovaquia", "Eslovenia", 
+#                   "España", "Estonia", "Finlandia", "Francia",
+#                   "Georgia (desambiguación)", "Grecia", "Hungría", "Islandia", 
+#                   "Irlanda (isla)", "Italia", "Kazajistán", "Letonia", "Lituania",
+#                   "Luxemburgo", "Malta", "Moldavia", "Mónaco", "Montenegro",
+#                   "Noruega", "Países Bajos", "Polonia", "Portugal", "Reino Unido",
+#                   "Republica Checa", "República de Macedonia", "Rumania", "Rusia",
+#                   "Serbia", "Suecia", "Suiza", "Turquía", "Ucrania")
+#
+## Lista de causas de muerte
+#causas_muerte_acp = c("enf_cardiovasculares", "alzheimer", "neoplasias",
+#                      "infecciones_respi", "enfermedad_crónica", "diabetes_mellitus")
+#
+## Filtramos los datos
+#data_ACP <- data %>% filter(pais %in% paises_europa) #%>% dplyr::select(all_of(causas_muerte_acp))
+#
+#causas_muerte_total <- colSums(data_ACP[, 5:35])
+#
+#data %>% mutate(nT = rowSums(data[5:35]) ) %>% 
+#  mutate(Parkinson=parkinson/nT) %>% 
+#  group_by(pais, año) %>% 
+#  summarise(x=mean(Parkinson)) %>% 
+#  ggplot(aes(x=reorder(pais,x, FUN=median ), y=x))+
+#  geom_boxplot()+theme(legend.position="none")
+#--
+#
+#
+#{r}
+#data_ACP_clr <- data2 %>% clr %>% as_tibble()
+#
+## Número de filas
+#n = nrow(data_ACP)
+#
+## Matriz de centrado
+#Hn = diag(n) - 1/n
+#
+## Datos centrados
+#data_cen = Hn %*% as.matrix(data_ACP[, 2:7]) %>% as_tibble() %>% add_column(., pais = data_ACP$pais, #.before = 1)
+#
+#data_cen %>% glimpse
+#--
+#
+#Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
+#
+#{r ACP}
+#datos_pca = prcomp(data_cen[, 2:7], scale = FALSE)
+#--
+#
+#{r veps}
+#veps = datos_pca$rotation
+#veps
+#--
+#
+#{r vaps}
+#vaps = get_eigenvalue(datos_pca)
+#vaps
+#--
+#
+#{r porcentajes variacion}
+#fviz_eig(datos_pca, addlabels = TRUE, ylim = c(0,100))
+#--
+#
+#{r circulo correlacion dim1-dim2}
+#circ_cor <- fviz_pca_var(datos_pca, col.var = "contrib", repel = TRUE, axes = 1:2)
+#
+#circ_cor
+#--
+#
+#{r representacion individuos, fig.height=9, fig.width=8}
+#autoplot(datos_pca, data = data_cen, loadings = TRUE, loadings.colour = 'blue', loadings.label = #TRUE, loadings.label.size = 3, label = FALSE, colour = 'pais') + theme(legend.position = "bottom")
+#--
+#
+#{r pruebas}
+## Por qué no es igual que data_ACP
+#
+#data2 <- data %>% filter(pais %in% paises_europa) %>% dplyr::select(all_of(causas_muerte_acp))
+#
+#data2clr <- data2 %>% clr %>% as_tibble()
+#
+## Dudas
+#
+## Primero clr y luego subconjunto o viceversa?
+## Escalar o no para el ACP?
 
-data2clr <- data2 %>% clr %>% as_tibble()
-
-# Dudas
-
-# Primero clr y luego subconjunto o viceversa?
-# Escalar o no para el ACP?
 ```
 
 ## 6 - Análisis en coordenadas principales
@@ -338,37 +561,18 @@ Q = as.matrix(causas_muerte_clr) %*% t(as.matrix(causas_muerte_clr))
 
 ## 7 - Ajuste de modelos NBMM y NBZIMM
 
-Vamos a ajustar los modelos NBMM y NBZIMM a los datos de países europeos. Primero vamos a filtrar los países de este continente.
-
-```{r datos europa}
-# Lista de países de Europa
-paises_europa <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán", 
-                   "Bélgica", "Bielorrusia", "Bosnia-Herzegovina", "Bulgaria", 
-                   "Chipre", "Croacia", "Dinamarca", "Eslovaquia", "Eslovenia", 
-                   "España", "Estonia", "Finlandia", "Francia",
-                   "Georgia (desambiguación)", "Grecia", "Hungría", "Islandia", 
-                   "Irlanda (isla)", "Italia", "Kazajistán", "Letonia", "Lituania",
-                   "Luxemburgo", "Malta", "Moldavia", "Mónaco", "Montenegro",
-                   "Noruega", "Países Bajos", "Polonia", "Portugal", "Reino Unido",
-                   "Republica Checa", "República de Macedonia", "Rumania", "Rusia",
-                   "Serbia", "Suecia", "Suiza", "Turquía", "Ucrania")
-
-# Filtramos los datos
-data_europa <- data %>% filter(pais %in% paises_europa)
-```
-
-Un primer ajuste será intentar explicar una causa de muerte a partir de una covariable. Veamos los conteos de ceros que hay para los datos europeos.
+Vamos a ajustar los modelos NBMM y NBZIMM a los datos de países europeos. Un primer ajuste será intentar explicar una causa de muerte a partir de una covariable. Veamos los conteos de ceros que hay para los datos europeos.
 
 ```{r conteo ceros europa}
-causas_muerte_europa <- data_europa %>% dplyr::select(meningitis:hepatitis_aguda) 
+causas_muerte_eu <- data_eu %>% dplyr::select(meningitis:hepatitis_aguda) 
 
-tabla_ceros_europa <- causas_muerte_europa %>% summarise(across(everything(), ~ sum(. == 0)))
+tabla_ceros_eu <- causas_muerte_eu %>% summarise(across(everything(), ~ sum(. == 0)))
 
-tabla_ceros_europa %>% glimpse
+tabla_ceros_eu %>% glimpse
 ```
 
 ```{r porcentaje ceros europa}
-100*sum(tabla_ceros_europa) / (nrow(causas_muerte_europa)*ncol(causas_muerte_europa))
+100*sum(tabla_ceros_eu) / (nrow(causas_muerte_eu)*ncol(causas_muerte_eu))
 ```
 
 Vemos que el porcentaje total de ceros ha subido un punto porcentual respecto a los datos totales y también cabe resaltar el caso de malaria, con casi la totalidad de ceros.
@@ -378,21 +582,21 @@ Vamos a elegir explicar algunas variables a partir del idh, ya que esta covariab
 Primero, realicemos los ajustes con el modelo NBMM.
 
 ```{r modelo NBMM meningitis}
-N = data_europa$total_muertes
+N = data_eu$total_muertes
 
-m11 = glmm.nb(meningitis ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_europa)
+m11 = glmm.nb(meningitis ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
 
 summary(m11)
 ```
 
 ```{r modelo NBMM hepatitis aguda}
-m12 = glmm.nb(hepatitis_aguda ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_europa)
+m12 = glmm.nb(hepatitis_aguda ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
 
 summary(m12)
 ```
 
 ```{r modelo NBMM malaria}
-m13 = glmm.nb(malaria ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_europa)
+m13 = glmm.nb(malaria ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
 
 summary(m13)
 ```
@@ -400,19 +604,19 @@ summary(m13)
 Ahora ajustaremos el modelo ZINBMM.
 
 ```{r modelo ZINBMM meningitis}
-m21 = glmm.zinb(meningitis ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_europa)
+m21 = glmm.zinb(meningitis ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
 
 summary(m21)
 ```
 
 ```{r modelo ZINBMM hepatitis aguda}
-m22 = glmm.zinb(hepatitis_aguda ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_europa)
+m22 = glmm.zinb(hepatitis_aguda ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
 
 summary(m22)
 ```
 
 ```{r modelo ZINBMM malaria}
-m23 = glmm.zinb(malaria ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_europa)
+m23 = glmm.zinb(malaria ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
 
 summary(m23)
 ```

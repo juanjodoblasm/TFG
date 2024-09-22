@@ -427,73 +427,350 @@ $ hepatitis_aguda         &lt;dbl&gt; 166343, 165276, 163687, 161899, 159423, 15
 </section>
 <section id="análisis-en-componentes-principales" class="level2">
 <h2 class="anchored" data-anchor-id="análisis-en-componentes-principales">5 - Análisis en componentes principales</h2>
-<p>Ahora, realicemos un análisis en componentes principales (ACP). Nos restringiremos a los datos que proporcionan los países europeos y a algunas causas de muerte. El criterio de elección es coger las principales causas de defunción según la ONU en <a href="https://www.who.int/es/news-room/fact-sheets/detail/the-top-10-causes-of-death">este artículo</a>. La ONU separa estas causas según la clasificación del Banco mundial del ingreso de los países que se puede ver <a href="https://blogs.worldbank.org/es/opendata/clasificacion-de-paises-del-banco-mundial-por-nivel-de-ingreso-2024-25">aquí</a>. Europa está compuesto mayoritariamente por países con ingresos altos, exceptuando algunos países en la región de los balcanes y europa oriental, por lo que escogemos las diez principales causas de defunción en los países con ingresos altos, que son:</p>
-<ol type="1">
-<li>Cardiopatía isquémica</li>
-<li>Enfermedad de Alzheimer y otras demencias</li>
-<li>Parkinson</li>
-<li>Accidente cerebrovascular</li>
-<li>Cáncer de tráquea, bronquios y pulmón</li>
-<li>Enfermedad pulmonar obstructiva crónica (EPOC)</li>
-<li>Cáncer de colon y recto</li>
-<li>Nefropatías</li>
-<li>Cardiopatía hipertensiva</li>
-<li>Diabetes mellitus</li>
-</ol>
-<p>En las variables que tenemos en nuestra base de datos, estas causas se pueden agrupar en las siguientes variables:</p>
-<ol type="1">
-<li><em>enf_cardiovasculares</em></li>
-<li><em>alzheimer</em></li>
-<li><em>neoplasias</em></li>
-<li><em>infecciones_respi</em></li>
-<li><em>enfermedad_crónica</em></li>
-<li><em>diabetes_mellitus</em></li>
-</ol>
-<p>Creemos un nuevo subconjunto de datos restringiéndonos a países europeos y estas causas de muerte. Será un subconjunto de los datos con la transformación <em>clr</em> aplicada. Además, vamos a centrar estos datos, es decir, a restar la media de su respectiva columna.</p>
+<p>En este apartado realizaremos un análisis en componentes principales (ACP). Nos restringiremos a los datos que proporcionan los países europeos. Primero vamos a filtrar los países de este continente en nuestra base de datos.</p>
+<p>Antes de realizar el ACP veamos cómo se distribuyen las muertes totales por año.</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in scale_y_log10(): log-10 transformation introduced infinite values.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 8 rows containing non-finite outside the scale range
+(`stat_ydensity()`).</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `position_dodge()` requires non-overlapping x intervals.</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/distribucion%20muertes%20por%20año-1.png" class="img-fluid figure-img" width="1440"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Como podemos ver, hay algunas causas de defunción que apenas causan impacto. Por ello, con el objetivo de reducir dimensionalidad, vamos a agruparlas siguiendo el criterio de la OMS en <a href="https://icd.who.int/browse/2024-01/mms/en">este enlace</a>. Los grupos que nos quedan son los siguientes:</p>
+<ul>
+<li><p>Enfermedades infecciosas o parasitarias (<em>enf_infec_paras</em>). En este grupo incluimos <em>meningitis</em>, <em>malaria</em>, <em>VIH</em> y <em>tuberculosis</em>.</p></li>
+<li><p>Enfermedades del sistema nervioso (<em>enf_sist_nervioso</em>). En este grupo incluimos <em>alzheimer</em> y <em>parkinson</em>.</p></li>
+<li><p>Enfermedades endocrinas, nutricionales o metabólicas (<em>enf_metabolicas</em>). En este grupo incluimos <em>def_nutricionales</em>, <em>diabetes_mellitus</em> y <em>desnutrición_energetica</em>.</p></li>
+<li><p>Otras causas (<em>otras_causas</em>). En este grupo incluimos <em>ahogo</em> y <em>violencia_inter</em>.</p></li>
+<li><p>Embarazo, parto o puerperio (<em>trastornos_maternos</em>). En este grupo incluimos <em>trastornos_maternos</em>.</p></li>
+<li><p>Trastornos mentales, del comportamiento o del desarrollo neurológico (<em>trastornos_mentales</em>). En este grupo incluimos <em>trastornos_cons_drogas</em> y <em>trastornos_Cons_alcohol</em>.</p></li>
+<li><p>Enfermedades del sistema circulatorio (<em>enf_cardiovasculares</em>). En este grupo incluimos <em>enf_cardiovasculares</em>.</p></li>
+<li><p>Enfermedades del sistema respiratorio (<em>infecciones_respi</em>). En este grupo incluimos <em>infecciones_respi</em>.</p></li>
+<li><p>Afecciones originadas en el período perinatal (<em>trastornos_neonatales</em>). En este grupo incluimos <em>trastornos_neonatales</em>.</p></li>
+<li><p>Causas externas de morbilidad o mortalidad (<em>causas_externas</em>). En este grupo incluimos <em>autolesiones</em>, <em>exp_fuer_naturaleza</em>, <em>conflicto_terrorismo</em> y <em>lesiones_carretera</em>.</p></li>
+<li><p>Enfermedades del sistema digestivo (<em>enf_sist_digestivo</em>). En este grupo incluimos <em>enf_diarreicas</em>, <em>cirrosis_crónicas</em>, <em>enfermedades_digestivas</em> y <em>hepatitis_aguda</em>.</p></li>
+<li><p>Lesiones, envenenamientos u otras consecuencias de causas externas (<em>envenenamientos_exposiciones</em>). En este grupo incluimos <em>exp_amb_temperatura</em>, <em>envenenamientos</em> y <em>fuego_calientes</em>.</p></li>
+<li><p>Neoplasias (<em>neoplasias</em>). En este grupo incluimos <em>neoplasias</em>.</p></li>
+<li><p>Enfermedades crónicas (<em>enf_cronicas</em>). En este grupo incluimos <em>enfermedad_crónica</em> y <em>enfermedades_cronicas</em>.</p></li>
+</ul>
+<p>Creemos la nueva base de datos con las causas de muerte agrupadas.</p>
+<p>Veamos de nuevo cómo se distribuyen las muertes totales por año, ahora con la nueva agrupación.</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `position_dodge()` requires non-overlapping x intervals.</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/distribucion%20muertes%20agrupadas%20por%20año-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Ahora sí, realicemos el ACP. Haremos un primer análisis con un conjunto de datos donde para cada país tendremos la mediana de cada causa de muerte con respecto al tiempo. Construyamos primero este conjunto de datos.</p>
+<p>Ahora, le aplicaremos la transformación <em>clr</em> y centraremos los datos. Notemos que no va a hacer falta imputar ceros ya que en ningún grupo de causas la mediana es 0. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Empecemos con los datos sin escalar.</p>
+<p>Pasemos al estudio de las componentes principales. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.</p>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
-<pre><code>Rows: 1,380
-Columns: 7
-$ pais                 &lt;chr&gt; "Albania", "Albania", "Albania", "Albania", "Alba…
-$ enf_cardiovasculares &lt;dbl&gt; -0.48835758, -0.49992921, -0.62072421, -0.5993106…
-$ alzheimer            &lt;dbl&gt; -0.712821875, -0.745794030, -0.831096676, -0.7682…
-$ neoplasias           &lt;dbl&gt; -0.76179043, -0.77219706, -0.88396878, -0.8507413…
-$ infecciones_respi    &lt;dbl&gt; 1.236084981, 1.220645719, 1.087051324, 1.07944289…
-$ enfermedad_crónica   &lt;dbl&gt; -0.24047326, -0.26120961, -0.40629986, -0.4000096…
-$ diabetes_mellitus    &lt;dbl&gt; -1.3832327, -1.3568450, -1.4570319, -1.4214288, -…</code></pre>
+<pre><code>                             enf_infec_paras enf_sist_nervioso enf_metabolicas
+enf_infec_paras                  0.380878270      -0.211165524     -0.16081464
+enf_sist_nervioso               -0.211165524       0.293999507      0.19804586
+enf_metabolicas                 -0.160814637       0.198045861      0.57102220
+otras_causas                     0.253282943      -0.255108533     -0.20193379
+trastornos_maternos             -0.141562522      -0.195611121     -0.35620167
+trastornos_mentales              0.004740010       0.001750444     -0.32399231
+enf_cardiovasculares             0.002512895       0.012859121      0.05576713
+infecciones_respi               -0.158145361       0.170895947      0.11659837
+trastornos_neonatales            0.041694621      -0.188132911      0.05294382
+causas_externas                  0.004989203       0.038576929      0.01660790
+enf_sist_digestivo               0.007487700       0.046014306      0.07973025
+envenenamientos_exposiciones     0.267121021      -0.290189195     -0.45737595
+neoplasias                      -0.168585143       0.201954916      0.17006831
+enf_cronicas                    -0.122433476       0.176110252      0.23953452
+                             otras_causas trastornos_maternos
+enf_infec_paras                0.25328294         -0.14156252
+enf_sist_nervioso             -0.25510853         -0.19561112
+enf_metabolicas               -0.20193379         -0.35620167
+otras_causas                   0.55344257         -0.41818315
+trastornos_maternos           -0.41818315          2.36871692
+trastornos_mentales            0.09730629         -0.31433437
+enf_cardiovasculares           0.12179328         -0.34178737
+infecciones_respi             -0.22640941         -0.04970258
+trastornos_neonatales          0.07475347          0.29942908
+causas_externas                0.08983822         -0.31772028
+enf_sist_digestivo            -0.01042666         -0.30946617
+envenenamientos_exposiciones   0.31188242          0.12662742
+neoplasias                    -0.18671965         -0.19300297
+enf_cronicas                  -0.20351801         -0.15720122
+                             trastornos_mentales enf_cardiovasculares
+enf_infec_paras                      0.004740010          0.002512895
+enf_sist_nervioso                    0.001750444          0.012859121
+enf_metabolicas                     -0.323992313          0.055767130
+otras_causas                         0.097306292          0.121793277
+trastornos_maternos                 -0.314334365         -0.341787370
+trastornos_mentales                  0.713494440         -0.002332881
+enf_cardiovasculares                -0.002332881          0.120220301
+infecciones_respi                   -0.043193275         -0.054837635
+trastornos_neonatales               -0.370956608         -0.021659728
+causas_externas                      0.084141037          0.055258625
+enf_sist_digestivo                   0.011410666          0.044994050
+envenenamientos_exposiciones         0.245036116         -0.015572916
+neoplasias                           0.016292762          0.029211751
+enf_cronicas                        -0.119362324         -0.006426621
+                             infecciones_respi trastornos_neonatales
+enf_infec_paras                    -0.15814536            0.04169462
+enf_sist_nervioso                   0.17089595           -0.18813291
+enf_metabolicas                     0.11659837            0.05294382
+otras_causas                       -0.22640941            0.07475347
+trastornos_maternos                -0.04970258            0.29942908
+trastornos_mentales                -0.04319328           -0.37095661
+enf_cardiovasculares               -0.05483763           -0.02165973
+infecciones_respi                   0.31644717           -0.04208190
+trastornos_neonatales              -0.04208190            0.63404830
+causas_externas                    -0.04147170           -0.15961267
+enf_sist_digestivo                  0.02992642           -0.09817225
+envenenamientos_exposiciones       -0.26968310           -0.02221626
+neoplasias                          0.09554555           -0.15259147
+enf_cronicas                        0.15611150           -0.04744550
+                             causas_externas enf_sist_digestivo
+enf_infec_paras                  0.004989203         0.00748770
+enf_sist_nervioso                0.038576929         0.04601431
+enf_metabolicas                  0.016607903         0.07973025
+otras_causas                     0.089838220        -0.01042666
+trastornos_maternos             -0.317720278        -0.30946617
+trastornos_mentales              0.084141037         0.01141067
+enf_cardiovasculares             0.055258625         0.04499405
+infecciones_respi               -0.041471695         0.02992642
+trastornos_neonatales           -0.159612666        -0.09817225
+causas_externas                  0.127384973         0.05054065
+enf_sist_digestivo               0.050540649         0.12898360
+envenenamientos_exposiciones     0.000384876        -0.06878465
+neoplasias                       0.042828363         0.04133903
+enf_cronicas                     0.008253863         0.04642306
+                             envenenamientos_exposiciones  neoplasias
+enf_infec_paras                               0.267121021 -0.16858514
+enf_sist_nervioso                            -0.290189195  0.20195492
+enf_metabolicas                              -0.457375950  0.17006831
+otras_causas                                  0.311882418 -0.18671965
+trastornos_maternos                           0.126627425 -0.19300297
+trastornos_mentales                           0.245036116  0.01629276
+enf_cardiovasculares                         -0.015572916  0.02921175
+infecciones_respi                            -0.269683095  0.09554555
+trastornos_neonatales                        -0.022216255 -0.15259147
+causas_externas                               0.000384876  0.04282836
+enf_sist_digestivo                           -0.068784653  0.04133903
+envenenamientos_exposiciones                  0.685912221 -0.20253109
+neoplasias                                   -0.202531088  0.17540007
+enf_cronicas                                 -0.310610924  0.13078958
+                             enf_cronicas
+enf_infec_paras              -0.122433476
+enf_sist_nervioso             0.176110252
+enf_metabolicas               0.239534522
+otras_causas                 -0.203518008
+trastornos_maternos          -0.157201225
+trastornos_mentales          -0.119362324
+enf_cardiovasculares         -0.006426621
+infecciones_respi             0.156111497
+trastornos_neonatales        -0.047445498
+causas_externas               0.008253863
+enf_sist_digestivo            0.046423056
+envenenamientos_exposiciones -0.310610924
+neoplasias                    0.130789576
+enf_cronicas                  0.209775311</code></pre>
 </div>
 </div>
-<p>Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.</p>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
-<pre><code>                           PC1         PC2        PC3         PC4         PC5
-enf_cardiovasculares 0.1313587  0.23111478  0.5655454 -0.58456361 -0.49732329
-alzheimer            0.4191103 -0.39769110  0.4572335  0.23729910  0.32339682
-neoplasias           0.3300398 -0.13772051  0.3994739  0.04554908  0.18765528
-infecciones_respi    0.2393749 -0.67971460 -0.4129454 -0.54801366 -0.09006466
-enfermedad_crónica   0.5782579  0.06899651 -0.2422931  0.45414352 -0.62901711
-diabetes_mellitus    0.5536088  0.55017120 -0.2868564 -0.30550696  0.45726948
-                             PC6
-enf_cardiovasculares  0.14298310
-alzheimer             0.54426967
-neoplasias           -0.82172876
-infecciones_respi    -0.04163134
-enfermedad_crónica   -0.01557263
-diabetes_mellitus     0.07818260</code></pre>
+<pre><code>Vectores propios (datos sin escalar)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                     PC1         PC2         PC3         PC4
+enf_infec_paras               0.01613541  0.28454953 -0.19769936 -0.28199594
+enf_sist_nervioso             0.11689306 -0.27549630  0.21514961 -0.02827543
+enf_metabolicas               0.16699234 -0.39309927 -0.25123207 -0.27069343
+otras_causas                  0.11763084  0.40185239 -0.26676977 -0.02872160
+trastornos_maternos          -0.90202660 -0.11653815  0.16300996 -0.16460653
+trastornos_mentales           0.13453282  0.27819805  0.58690083  0.42394112
+enf_cardiovasculares          0.13056635  0.03394918 -0.08616922 -0.08721392
+infecciones_respi             0.03954228 -0.24863424  0.11488863  0.40418075
+trastornos_neonatales        -0.17420997 -0.01910824 -0.59464417  0.61166581
+causas_externas               0.13420276  0.04309622  0.06984939 -0.23780697
+enf_sist_digestivo            0.12821834 -0.03306936  0.01176645 -0.13548132
+envenenamientos_exposiciones -0.10167985  0.50928868  0.06287485 -0.11364782
+neoplasias                    0.10630141 -0.19802646  0.16125504 -0.07447374
+enf_cronicas                  0.08690081 -0.26696202  0.01081983 -0.01687097
+                                     PC5          PC6          PC7         PC8
+enf_infec_paras               0.63124558 -0.127353706 -0.351837790  0.29928347
+enf_sist_nervioso            -0.04731589  0.120347159  0.238789868  0.38117029
+enf_metabolicas              -0.16803125  0.179435136 -0.427608992 -0.55531840
+otras_causas                 -0.30533131 -0.542772648  0.204480756 -0.18128954
+trastornos_maternos          -0.10599726 -0.170544049 -0.050818068 -0.03989969
+trastornos_mentales          -0.15054315 -0.059153104 -0.524586766 -0.05630010
+enf_cardiovasculares         -0.30040034 -0.029321208  0.160802551  0.19097476
+infecciones_respi             0.47135012 -0.219533817  0.408767603 -0.40903556
+trastornos_neonatales        -0.10995237  0.217371573 -0.115362231  0.22611330
+causas_externas              -0.17793391 -0.164996761  0.124042081  0.08612650
+enf_sist_digestivo            0.15912928 -0.009418469  0.004874656 -0.08191709
+envenenamientos_exposiciones  0.09060647  0.660058408  0.291235732 -0.26144099
+neoplasias                   -0.15795801  0.214323983  0.087805646  0.22453483
+enf_cronicas                  0.17113203 -0.068442498 -0.050585048  0.17699821
+                                       PC9        PC10         PC11
+enf_infec_paras               0.1631500921 -0.18157094 -0.137900162
+enf_sist_nervioso             0.2433373423 -0.19201463 -0.434199821
+enf_metabolicas               0.1781690328 -0.09708136 -0.110227529
+otras_causas                  0.2067020175 -0.05301997  0.052615083
+trastornos_maternos          -0.0324073285 -0.04512552  0.001414916
+trastornos_mentales          -0.0002316984 -0.03057176 -0.004324982
+enf_cardiovasculares         -0.2174539826 -0.54446542  0.279190814
+infecciones_respi             0.0767747026 -0.10847505 -0.070177004
+trastornos_neonatales        -0.0786407498  0.15068833 -0.130833270
+causas_externas              -0.0210306792  0.66148078 -0.334881730
+enf_sist_digestivo           -0.8593390506  0.04452512 -0.068206116
+envenenamientos_exposiciones  0.1113084410  0.07950239  0.112129195
+neoplasias                    0.0864050286 -0.05194876  0.113828699
+enf_cronicas                  0.1432568322  0.36807677  0.731571907
+                                     PC12         PC13       PC14
+enf_infec_paras               0.141651897  0.044920550 -0.2672612
+enf_sist_nervioso            -0.502249494 -0.189789435 -0.2672612
+enf_metabolicas              -0.017580340 -0.066916762 -0.2672612
+otras_causas                 -0.325962083  0.253365202 -0.2672612
+trastornos_maternos          -0.009257850 -0.001152393 -0.2672612
+trastornos_mentales          -0.006363129 -0.058157970 -0.2672612
+enf_cardiovasculares          0.383369579 -0.416248033 -0.2672612
+infecciones_respi             0.246948910 -0.017045072 -0.2672612
+trastornos_neonatales         0.017394251  0.005796587 -0.2672612
+causas_externas               0.406071592 -0.224822210 -0.2672612
+enf_sist_digestivo           -0.305020140  0.149210613 -0.2672612
+envenenamientos_exposiciones -0.078505374 -0.086522137 -0.2672612
+neoplasias                    0.296242649  0.778854949 -0.2672612
+enf_cronicas                 -0.246740467 -0.171493888 -0.2672612</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Vectores propios (datos escalados)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                     PC1          PC2         PC3         PC4
+enf_infec_paras               0.29346556  0.117117538 -0.16758207  0.50372426
+enf_sist_nervioso            -0.39054440  0.056119339  0.17130847 -0.12191213
+enf_metabolicas              -0.31310086  0.003209036 -0.39250472 -0.05452987
+otras_causas                  0.30293769  0.286862012 -0.22316802 -0.08679867
+trastornos_maternos           0.10029332 -0.462248585  0.19005579 -0.17308746
+trastornos_mentales           0.08280230  0.249038141  0.52967820  0.02142156
+enf_cardiovasculares         -0.02348915  0.398166466 -0.31647676 -0.37901599
+infecciones_respi            -0.28932225 -0.155609702  0.11010812  0.40124686
+trastornos_neonatales         0.11937457 -0.313431337 -0.46611668 -0.11115871
+causas_externas              -0.05379914  0.465530054  0.05900359 -0.12338367
+enf_sist_digestivo           -0.15287746  0.322211396 -0.12058821  0.50832574
+envenenamientos_exposiciones  0.36740933  0.085312323  0.20069777 -0.01492511
+neoplasias                   -0.38165878  0.119355563  0.14501825 -0.25599484
+enf_cronicas                 -0.38627241 -0.045692061 -0.11465868  0.18463616
+                                      PC5         PC6         PC7         PC8
+enf_infec_paras              -0.257513383 -0.28570758 -0.41024674  0.23720798
+enf_sist_nervioso             0.007757154 -0.05364395 -0.14614943  0.31859213
+enf_metabolicas              -0.201343003 -0.07582628 -0.22244640 -0.35787412
+otras_causas                  0.254993294 -0.28161243  0.24471270  0.02947584
+trastornos_maternos          -0.359137140  0.15256620  0.32873024  0.06127704
+trastornos_mentales           0.357751441  0.01326625 -0.25298291 -0.54072706
+enf_cardiovasculares          0.215184246  0.29438700 -0.06779189  0.35222423
+infecciones_respi             0.538450613 -0.13146627  0.28568781  0.33069036
+trastornos_neonatales         0.339790415  0.07592426 -0.03438579 -0.23785126
+causas_externas              -0.287337115 -0.38125661  0.49762707 -0.10692965
+enf_sist_digestivo           -0.141466827  0.65852336  0.24223191 -0.13744089
+envenenamientos_exposiciones -0.076584294  0.17018904 -0.22971796  0.28257939
+neoplasias                   -0.085234525  0.06997776 -0.26981836  0.11969834
+enf_cronicas                 -0.060861427 -0.29052277 -0.09813450 -0.05151786
+                                     PC9         PC10         PC11        PC12
+enf_infec_paras               0.22098414  0.140963885  0.256726486 -0.23542162
+enf_sist_nervioso            -0.05819261  0.157804451  0.518135152  0.53319910
+enf_metabolicas              -0.09119589 -0.639957802  0.080209464 -0.02898182
+otras_causas                  0.12847796 -0.172217503 -0.068514877  0.48306634
+trastornos_maternos           0.34181920 -0.008148065 -0.016218613 -0.05802670
+trastornos_mentales           0.21142441  0.049025216  0.034899700 -0.07468782
+enf_cardiovasculares          0.37329433  0.025087657 -0.131089675 -0.26491590
+infecciones_respi            -0.09795808 -0.275466894  0.007669276 -0.30239956
+trastornos_neonatales        -0.34602417  0.473278386  0.194564321 -0.10092985
+causas_externas              -0.29486451  0.190627362  0.112740229 -0.29629818
+enf_sist_digestivo           -0.04195085  0.104249952  0.034060549  0.15599750
+envenenamientos_exposiciones -0.60591344 -0.163993137 -0.342950686  0.09897908
+neoplasias                   -0.15490161  0.113015975 -0.057479005 -0.27872762
+enf_cronicas                  0.11361329  0.355211466 -0.680536929  0.21380000
+                                     PC13       PC14
+enf_infec_paras              -0.058911326 -0.2287366
+enf_sist_nervioso             0.229952332 -0.2009629
+enf_metabolicas               0.132298601 -0.2800715
+otras_causas                 -0.450868793 -0.2757267
+trastornos_maternos          -0.013794424 -0.5704257
+trastornos_mentales           0.116818360 -0.3130674
+enf_cardiovasculares          0.302684766 -0.1285084
+infecciones_respi             0.017820622 -0.2084938
+trastornos_neonatales         0.006839162 -0.2951234
+causas_externas               0.182787183 -0.1322823
+enf_sist_digestivo           -0.113128618 -0.1331097
+envenenamientos_exposiciones  0.184715406 -0.3069564
+neoplasias                   -0.715808187 -0.1552235
+enf_cronicas                  0.156000578 -0.1697539</code></pre>
+</div>
+</div>
+<p>En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable <em>trastornos_maternos</em> y la segunda componente principal da peso a las variables <em>envenamientos_ecposiciones</em>, <em>otras_causas</em> y <em>enf_metabolicas</em>, en ese orden.</p>
+<p>Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan peso a casi todas las variables.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Valores propios (datos sin escalar)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         eigenvalue variance.percent cumulative.variance.percent
+Dim.1  2.816861e+00     3.869461e+01                    38.69461
+Dim.2  2.073650e+00     2.848527e+01                    67.17988
+Dim.3  1.126202e+00     1.547039e+01                    82.65027
+Dim.4  3.419913e-01     4.697859e+00                    87.34813
+Dim.5  2.609130e-01     3.584104e+00                    90.93223
+Dim.6  1.963874e-01     2.697730e+00                    93.62996
+Dim.7  1.659184e-01     2.279185e+00                    95.90915
+Dim.8  9.128018e-02     1.253896e+00                    97.16304
+Dim.9  8.682085e-02     1.192639e+00                    98.35568
+Dim.10 5.259936e-02     7.225459e-01                    99.07823
+Dim.11 3.369606e-02     4.628753e-01                    99.54110
+Dim.12 2.280564e-02     3.132761e-01                    99.85438
+Dim.13 1.060067e-02     1.456191e-01                   100.00000
+Dim.14 5.399395e-30     7.417031e-29                   100.00000</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Valores propios (datos escalados)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         eigenvalue variance.percent cumulative.variance.percent
+Dim.1  5.262387e+00     3.758848e+01                    37.58848
+Dim.2  3.133012e+00     2.237866e+01                    59.96714
+Dim.3  1.928343e+00     1.377388e+01                    73.74102
+Dim.4  9.419478e-01     6.728199e+00                    80.46922
+Dim.5  6.943609e-01     4.959721e+00                    85.42894
+Dim.6  5.290336e-01     3.778812e+00                    89.20775
+Dim.7  4.230746e-01     3.021961e+00                    92.22971
+Dim.8  3.370702e-01     2.407644e+00                    94.63736
+Dim.9  2.612164e-01     1.865831e+00                    96.50319
+Dim.10 2.072110e-01     1.480079e+00                    97.98327
+Dim.11 1.373012e-01     9.807228e-01                    98.96399
+Dim.12 9.294356e-02     6.638826e-01                    99.62787
+Dim.13 5.209801e-02     3.721286e-01                   100.00000
+Dim.14 1.089126e-29     7.779471e-29                   100.00000</code></pre>
 </div>
 </div>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
-<pre><code>      eigenvalue variance.percent cumulative.variance.percent
-Dim.1 1.48704320        62.292500                    62.29250
-Dim.2 0.36857608        15.439716                    77.73222
-Dim.3 0.25902644        10.850663                    88.58288
-Dim.4 0.16587542         6.948550                    95.53143
-Dim.5 0.08187692         3.429838                    98.96127
-Dim.6 0.02479654         1.038731                   100.00000</code></pre>
+<pre><code>Datos sin escalar</code></pre>
 </div>
-</div>
-<div class="cell">
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -501,12 +778,30 @@ Dim.6 0.02479654         1.038731                   100.00000</code></pre>
 </figure>
 </div>
 </div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Datos escalados</code></pre>
 </div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/porcentajes%20variacion-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>En ambos casos, a partir de la tabla y el gráfico podemos elegir tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Sin embargo, con los datos sin escalar explicamos el <span class="math inline">\(82,65\%\)</span> de la variación y con los datos escalados el <span class="math inline">\(73,74\%\)</span>. Representemos estas variables en el espacio.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="analisis_exploratorio_files/figure-html/circulo%20correlacion%20dim1-dim2-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="analisis_exploratorio_files/figure-html/circulo%20correlacion%20dim1-dim2-1.png" class="img-fluid figure-img" width="960"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/circulo%20correlacion%20dim1-dim2-2.png" class="img-fluid figure-img" width="960"></p>
 </figure>
 </div>
 </div>
@@ -515,7 +810,14 @@ Dim.6 0.02479654         1.038731                   100.00000</code></pre>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="analisis_exploratorio_files/figure-html/representacion%20individuos-1.png" class="img-fluid figure-img" width="768"></p>
+<p><img src="analisis_exploratorio_files/figure-html/biplots%20dim1-dim2-1.png" class="img-fluid figure-img" width="960"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/biplots%20dim1-dim2-2.png" class="img-fluid figure-img" width="960"></p>
 </figure>
 </div>
 </div>
@@ -549,8 +851,7 @@ Dim.6 0.02479654         1.038731                   100.00000</code></pre>
 </section>
 <section id="ajuste-de-modelos-nbmm-y-nbzimm" class="level2">
 <h2 class="anchored" data-anchor-id="ajuste-de-modelos-nbmm-y-nbzimm">7 - Ajuste de modelos NBMM y NBZIMM</h2>
-<p>Vamos a ajustar los modelos NBMM y NBZIMM a los datos de países europeos. Primero vamos a filtrar los países de este continente.</p>
-<p>Un primer ajuste será intentar explicar una causa de muerte a partir de una covariable. Veamos los conteos de ceros que hay para los datos europeos.</p>
+<p>Vamos a ajustar los modelos NBMM y NBZIMM a los datos de países europeos. Un primer ajuste será intentar explicar una causa de muerte a partir de una covariable. Veamos los conteos de ceros que hay para los datos europeos.</p>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
 <pre><code>Rows: 1
@@ -617,11 +918,11 @@ Attaching package: 'MASS'</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Computational iterations: 6 
-Computational time: 0.002 minutes </code></pre>
+Computational time: 0.001 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
-  Data: data_europa 
+  Data: data_eu 
   AIC BIC logLik
    NA  NA     NA
 
@@ -656,7 +957,7 @@ Computational time: 0.004 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
-  Data: data_europa 
+  Data: data_eu 
   AIC BIC logLik
    NA  NA     NA
 
@@ -691,7 +992,7 @@ Computational time: 0.003 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
-  Data: data_europa 
+  Data: data_eu 
   AIC BIC logLik
    NA  NA     NA
 
@@ -727,7 +1028,7 @@ Computational time: 0.001 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
-  Data: data_europa 
+  Data: data_eu 
   AIC BIC logLik
    NA  NA     NA
 
@@ -762,7 +1063,7 @@ Computational time: 0.004 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
-  Data: data_europa 
+  Data: data_eu 
   AIC BIC logLik
    NA  NA     NA
 
@@ -797,7 +1098,7 @@ Computational time: 0.004 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
-  Data: data_europa 
+  Data: data_eu 
   AIC BIC logLik
    NA  NA     NA
 
