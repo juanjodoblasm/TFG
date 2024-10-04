@@ -9,6 +9,7 @@ editor: visual
 execute:
   echo: false
   message: false
+embed-resources: true
 ---
 
 ## 1 - Introducción
@@ -472,7 +473,7 @@ data_eu_g_1990_clr[, 2:12] <- data_eu_agrupado_1990 %>%
   clr %>%
   as_tibble
 
-n = nrow(data_eu_1990_m_clr)
+n = nrow(data_eu_g_1990_clr)
 
 # Matriz de centrado
 Hn = diag(n) - 1/n

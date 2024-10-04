@@ -89,6 +89,8 @@ window.Quarto = {
   <li><a href="#análisis-en-componentes-principales" id="toc-análisis-en-componentes-principales" class="nav-link" data-scroll-target="#análisis-en-componentes-principales">5 - Análisis en componentes principales</a>
   <ul class="collapse">
   <li><a href="#acp-medianas-temporales" id="toc-acp-medianas-temporales" class="nav-link" data-scroll-target="#acp-medianas-temporales">ACP medianas temporales</a></li>
+  <li><a href="#acp-1990" id="toc-acp-1990" class="nav-link" data-scroll-target="#acp-1990">ACP 1990</a></li>
+  <li><a href="#acp-2019" id="toc-acp-2019" class="nav-link" data-scroll-target="#acp-2019">ACP 2019</a></li>
   </ul></li>
   <li><a href="#análisis-en-coordenadas-principales" id="toc-análisis-en-coordenadas-principales" class="nav-link" data-scroll-target="#análisis-en-coordenadas-principales">6 - Análisis en coordenadas principales</a></li>
   <li><a href="#ajuste-de-modelos-nbmm-y-nbzimm" id="toc-ajuste-de-modelos-nbmm-y-nbzimm" class="nav-link" data-scroll-target="#ajuste-de-modelos-nbmm-y-nbzimm">7 - Ajuste de modelos NBMM y NBZIMM</a></li>
@@ -549,7 +551,7 @@ enf_cronicas          0.056748428   0.12827475</code></pre>
 </div>
 </div>
 </div>
-<p>En cuanto a las correlaciones, la mayor correlación positiva se encuentra entre <em>enf_sist_nervioso</em> y <em>neoplasias</em>, con un valor de <span class="math inline">\(0.74\)</span>. Por otro lado, la mayor correlación negativa se encuentra entre <em>enf_infec_para</em> y <em>neoplasias</em> y entre <em>enf_metabolicas</em> y <em>trastornos_mentales</em>, ambas con un valor de <span class="math inline">\(-0.66\)</span>.</p>
+<p>La mayor correlación positiva se encuentra entre <em>enf_sist_nervioso</em> y <em>neoplasias</em>, con un valor de <span class="math inline">\(0.74\)</span>. Por otro lado, la mayor correlación negativa se encuentra entre <em>enf_infec_para</em> y <em>neoplasias</em> y entre <em>enf_metabolicas</em> y <em>trastornos_mentales</em>, ambas con un valor de <span class="math inline">\(-0.66\)</span>.</p>
 <p>Pasemos al estudio de las componentes principales. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.</p>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
@@ -693,8 +695,8 @@ Dim.11 1.584937e-29     1.440852e-28                   100.00000</code></pre>
 </div>
 </div>
 </div>
-<p>En el primer gráfico vemos que las variables mejor representadas son <em>trastornos_embarazo</em> y <em>trastornos_mentales</em> ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, <em>enf_cardiovasculares</em> y <em>enf_sist_nervioso</em> son las peores representadas y las que menos contribuyen, debido a que tienen la menor varianza.</p>
-<p>En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando de nuevo <em>enf_cardiovasculares</em> y <em>enf_sist_nervioso</em>, aunque en este caso la diferencia no es tan grande.</p>
+<p>En el primer gráfico vemos que las variables mejor representadas son <em>trastornos_embarazo</em> y <em>trastornos_mentales</em> ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, <em>enf_cardiovasculares</em> y <em>enf_sist_digestivo</em> son las peores representadas y las que menos contribuyen, debido a que tienen la menor varianza.</p>
+<p>En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando de nuevo <em>enf_cardiovasculares</em> y <em>enf_sist_digestivo</em>, aunque en este caso la diferencia no es tan grande.</p>
 <p>Podemos ver las contribuciones de cada variable al plano principal</p>
 <div class="cell">
 <div class="cell-output-display">
@@ -726,6 +728,552 @@ Dim.11 1.584937e-29     1.440852e-28                   100.00000</code></pre>
 </div>
 </div>
 <p>Podemos ver que la agrupación de países no difiere mucho de un gráfico a otro.</p>
+</section>
+<section id="acp-1990" class="level3">
+<h3 class="anchored" data-anchor-id="acp-1990">ACP 1990</h3>
+<p>Veamos ahora un análisis en componentes principales donde tomaremos los datos de 1990. Construyamos primero este conjunto de datos.</p>
+<p>Veamos si hay alguna entrada que sea <span class="math inline">\(0\)</span>.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 1
+Columns: 1
+$ total_ceros &lt;int&gt; 1</code></pre>
+</div>
+</div>
+<p>Como hay un <span class="math inline">\(0\)</span>, para poder realizar la transformación <em>clr</em> lo tendremos que imputar. Lo vamos a sustituir por <span class="math inline">\(0.65\)</span> y luego aplicaremos la transformación <em>clr</em> y centraremos los datos.</p>
+<p>Antes de realizar el método de componentes principales, observemos la matriz de varianzas-covarianzas y la matriz de correlación.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Matriz de varianzas-covarianzas</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                     enf_infec_paras enf_sist_nervioso enf_metabolicas
+enf_infec_paras         0.2169828861       -0.11207833    -0.108241275
+enf_sist_nervioso      -0.1120783282        0.14516435     0.058440017
+enf_metabolicas        -0.1082412748        0.05844002     0.316417809
+causas_externas         0.0421688216       -0.04693272    -0.107555653
+trastornos_embarazo     0.1635760526       -0.22922618     0.004216506
+trastornos_mentales     0.0192276714        0.01812649    -0.324873357
+enf_cardiovasculares   -0.0426268817        0.02208257    -0.030640543
+infecciones_respi      -0.0445786604        0.02279922     0.044162439
+enf_sist_digestivo     -0.0004192099       -0.02123349     0.038473529
+neoplasias             -0.0982384085        0.10806775     0.039673344
+enf_cronicas           -0.0357726683        0.03479033     0.069927184
+                     causas_externas trastornos_embarazo trastornos_mentales
+enf_infec_paras           0.04216882         0.163576053          0.01922767
+enf_sist_nervioso        -0.04693272        -0.229226185          0.01812649
+enf_metabolicas          -0.10755565         0.004216506         -0.32487336
+causas_externas           0.12175897         0.014992105          0.15049486
+trastornos_embarazo       0.01499210         0.691127536         -0.33467407
+trastornos_mentales       0.15049486        -0.334674068          0.78610287
+enf_cardiovasculares      0.02096224        -0.049495299          0.07545799
+infecciones_respi        -0.11583961         0.041354585         -0.24991036
+enf_sist_digestivo       -0.01067389        -0.043913172         -0.05845774
+neoplasias               -0.02292754        -0.204828249          0.03742471
+enf_cronicas             -0.04644759        -0.053129811         -0.11891906
+                     enf_cardiovasculares infecciones_respi enf_sist_digestivo
+enf_infec_paras               -0.04262688       -0.04457866      -0.0004192099
+enf_sist_nervioso              0.02208257        0.02279922      -0.0212334868
+enf_metabolicas               -0.03064054        0.04416244       0.0384735289
+causas_externas                0.02096224       -0.11583961      -0.0106738868
+trastornos_embarazo           -0.04949530        0.04135459      -0.0439131723
+trastornos_mentales            0.07545799       -0.24991036      -0.0584577387
+enf_cardiovasculares           0.07590157       -0.06166925      -0.0128598150
+infecciones_respi             -0.06166925        0.38294905      -0.0125264536
+enf_sist_digestivo            -0.01285981       -0.01252645       0.1235025335
+neoplasias                     0.02677945       -0.03146003      -0.0010422097
+enf_cronicas                  -0.02389203        0.02471908      -0.0008500898
+                      neoplasias  enf_cronicas
+enf_infec_paras      -0.09823841 -0.0357726683
+enf_sist_nervioso     0.10806775  0.0347903286
+enf_metabolicas       0.03967334  0.0699271839
+causas_externas      -0.02292754 -0.0464475874
+trastornos_embarazo  -0.20482825 -0.0531298112
+trastornos_mentales   0.03742471 -0.1189190630
+enf_cardiovasculares  0.02677945 -0.0238920268
+infecciones_respi    -0.03146003  0.0247190835
+enf_sist_digestivo   -0.00104221 -0.0008500898
+neoplasias            0.10931698  0.0372342035
+enf_cronicas          0.03723420  0.1123404471</code></pre>
+</div>
+</div>
+<p>Podemos ver que los valores de las varianzas se agrupan entre <span class="math inline">\(0.07590157\)</span> y <span class="math inline">\(0.78610287\)</span>, siendo el valor mínimo de <em>enf_cardiovasculares</em> y el máximo de <em>trastornos_mentales</em>. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>enf_cardiovasculares           neoplasias         enf_cronicas 
+          0.07590157           0.10931698           0.11234045 
+     causas_externas   enf_sist_digestivo    enf_sist_nervioso 
+          0.12175897           0.12350253           0.14516435 
+     enf_infec_paras      enf_metabolicas    infecciones_respi 
+          0.21698289           0.31641781           0.38294905 
+ trastornos_embarazo  trastornos_mentales 
+          0.69112754           0.78610287 </code></pre>
+</div>
+</div>
+<p>Por otro lado, la matriz de correlaciones es:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/matriz%20correlacion%201990-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>La mayor correlación positiva se encuentra entre <em>enf_sist_nervioso</em> y <em>neoplasias</em>, con un valor de <span class="math inline">\(0.85\)</span>. Por otro lado, la mayor correlación negativa se encuentra entre <em>enf_sist_nervioso</em> y <em>trastornos_embarazo</em>, con un valor de <span class="math inline">\(-0.75\)</span>.</p>
+<p>Pasemos al estudio de las componentes principales. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Vectores propios (datos sin escalar)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                             PC1          PC2         PC3           PC4
+enf_infec_paras      -0.04712898  0.355663991  0.05886395  0.5968133034
+enf_sist_nervioso     0.10754694 -0.334462343  0.01251976 -0.2014377194
+enf_metabolicas      -0.26430526 -0.367031602 -0.41888497 -0.0597830977
+causas_externas       0.13373541  0.214489188 -0.12433803 -0.0009427211
+trastornos_embarazo  -0.51876435  0.593742935 -0.08987577 -0.4018254229
+trastornos_mentales   0.72873370  0.271719508  0.13770483 -0.1642589076
+enf_cardiovasculares  0.09661250 -0.005687015 -0.11067295 -0.2870604727
+infecciones_respi    -0.26147579 -0.212560140  0.85465374 -0.0425057145
+enf_sist_digestivo   -0.02716940 -0.064895471 -0.12896097  0.5446517585
+neoplasias            0.12227378 -0.266971239 -0.11622518 -0.1147635478
+enf_cronicas         -0.07005857 -0.184007811 -0.07478440  0.1311125417
+                             PC5         PC6         PC7         PC8
+enf_infec_paras      -0.38124957 -0.20485825 -0.46069973 -0.03752555
+enf_sist_nervioso    -0.23274507  0.04695045 -0.36212325 -0.05758577
+enf_metabolicas       0.24507762 -0.59409079 -0.08730963  0.24953236
+causas_externas       0.03108553  0.39022825  0.05819489  0.81966313
+trastornos_embarazo   0.03587388 -0.04658384  0.11195450 -0.18690872
+trastornos_mentales   0.16460178 -0.42882457  0.19321256 -0.09622846
+enf_cardiovasculares  0.10549218  0.39428289 -0.26731510 -0.30848923
+infecciones_respi     0.16230649 -0.03755638  0.02493947  0.13193597
+enf_sist_digestivo    0.59265416  0.25650922  0.17781053 -0.27386162
+neoplasias           -0.18701645  0.20363543 -0.08496389 -0.13553263
+enf_cronicas         -0.53608056  0.02030758  0.69629965 -0.10499949
+                              PC9          PC10       PC11
+enf_infec_paras      -0.116277134 -0.0789360278 -0.3015113
+enf_sist_nervioso     0.391642164  0.6330229373 -0.3015113
+enf_metabolicas      -0.190924137 -0.0783230726 -0.3015113
+causas_externas       0.007882102  0.0346191515 -0.3015113
+trastornos_embarazo   0.256082950  0.0373940259 -0.3015113
+trastornos_mentales   0.026207037 -0.0009618176 -0.3015113
+enf_cardiovasculares -0.686920635  0.0013613002 -0.3015113
+infecciones_respi    -0.088389602 -0.0985092655 -0.3015113
+enf_sist_digestivo    0.214559496  0.1455209943 -0.3015113
+neoplasias            0.399079103 -0.7313636579 -0.3015113
+enf_cronicas         -0.212941343  0.1361754324 -0.3015113</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Vectores propios (datos escalados)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                             PC1         PC2         PC3         PC4
+enf_infec_paras      -0.41482795  0.07888541 -0.03842179 -0.32999807
+enf_sist_nervioso     0.47113668 -0.15664719  0.17283509 -0.07259186
+enf_metabolicas       0.28956750  0.33414983 -0.27010235  0.33931781
+causas_externas      -0.29544829 -0.35281313 -0.14042283  0.04944149
+trastornos_embarazo  -0.35313126  0.31541251  0.11658758  0.42485203
+trastornos_mentales  -0.09906069 -0.50927129  0.08524942 -0.28642617
+enf_cardiovasculares  0.07247003 -0.37222691  0.01725965  0.60802659
+infecciones_respi     0.10265684  0.35002358  0.47076829 -0.22215188
+enf_sist_digestivo    0.02329462  0.10647138 -0.79172184 -0.19405485
+neoplasias            0.45382579 -0.23319601 -0.06179980 -0.04617362
+enf_cronicas          0.27929097  0.21789294 -0.05054161 -0.21650492
+                             PC5         PC6          PC7          PC8
+enf_infec_paras       0.20657146  0.08931104 -0.580665884  0.420268230
+enf_sist_nervioso    -0.02037061  0.23099579 -0.098007342  0.363844011
+enf_metabolicas       0.10153714  0.49852691  0.039507277 -0.153001865
+causas_externas       0.19398579 -0.01411037  0.688574529  0.395373292
+trastornos_embarazo   0.11778655 -0.00288297  0.028717230 -0.001413571
+trastornos_mentales  -0.06111897  0.15774887 -0.043874227 -0.596396974
+enf_cardiovasculares -0.16079159 -0.48497849 -0.340918152  0.056712487
+infecciones_respi    -0.50960657 -0.24655729  0.231430237  0.123922135
+enf_sist_digestivo   -0.42938362 -0.22916563 -0.000844623  0.039784009
+neoplasias            0.12015696  0.03720501 -0.030321717  0.311555165
+enf_cronicas          0.63796788 -0.56138003  0.063805161 -0.195828501
+                             PC9         PC10       PC11
+enf_infec_paras      -0.24987763 -0.118411927 -0.2653549
+enf_sist_nervioso     0.04761450  0.687905466 -0.2170423
+enf_metabolicas      -0.44970097 -0.166377839 -0.3204386
+causas_externas      -0.24087323  0.015927712 -0.1987764
+trastornos_embarazo   0.56591288  0.149924010 -0.4735801
+trastornos_mentales   0.01257103 -0.005583171 -0.5050728
+enf_cardiovasculares -0.28363549 -0.024929616 -0.1569422
+infecciones_respi    -0.21152785 -0.193777778 -0.3525209
+enf_sist_digestivo    0.14327905  0.156726045 -0.2001946
+neoplasias            0.44509931 -0.621542210 -0.1883468
+enf_cronicas         -0.10388615  0.115203921 -0.1909336</code></pre>
+</div>
+</div>
+<p>En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable <em>trastornos_mentales</em> y <em>trastornos_embarazo</em> y apenas le da peso a <em>enf_sist_digestivo</em>, <em>enf_infec_paras</em>, <em>enf_cronicas</em> y <em>enf_cardiovasculares</em>. Considerando la segunda componente, vemos que seguimos sin darle peso a <em>enf_cardiovasculares</em> y <em>enf_sist_digestivo</em>.</p>
+<p>Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables, quizás exceptuando <em>enf_sist_digestivo</em>.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Valores propios (datos sin escalar)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         eigenvalue variance.percent cumulative.variance.percent
+Dim.1  1.290792e+00     4.188754e+01                    41.88754
+Dim.2  8.669219e-01     2.813252e+01                    70.02006
+Dim.3  3.427964e-01     1.112410e+01                    81.14416
+Dim.4  1.844898e-01     5.986886e+00                    87.13105
+Dim.5  1.239452e-01     4.022149e+00                    91.15320
+Dim.6  1.014809e-01     3.293161e+00                    94.44636
+Dim.7  6.902207e-02     2.239838e+00                    96.68620
+Dim.8  5.606750e-02     1.819449e+00                    98.50564
+Dim.9  3.602896e-02     1.169177e+00                    99.67482
+Dim.10 1.002059e-02     3.251786e-01                   100.00000
+Dim.11 4.743686e-30     1.539375e-28                   100.00000</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Valores propios (datos escalados)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         eigenvalue variance.percent cumulative.variance.percent
+Dim.1  3.509587e+00     3.190534e+01                    31.90534
+Dim.2  2.862643e+00     2.602402e+01                    57.92936
+Dim.3  1.163773e+00     1.057975e+01                    68.50912
+Dim.4  1.010385e+00     9.185322e+00                    77.69444
+Dim.5  8.966698e-01     8.151544e+00                    85.84598
+Dim.6  5.000762e-01     4.546147e+00                    90.39213
+Dim.7  4.549833e-01     4.136212e+00                    94.52834
+Dim.8  3.234834e-01     2.940758e+00                    97.46910
+Dim.9  2.024583e-01     1.840530e+00                    99.30963
+Dim.10 7.594073e-02     6.903703e-01                   100.00000
+Dim.11 1.689274e-29     1.535704e-28                   100.00000</code></pre>
+</div>
+</div>
+<p>A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el <span class="math inline">\(70\%\)</span> de la variación total con los datos sin escalar; y el <span class="math inline">\(58\%\)</span> con los datos escalados. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/porcentajes%20variacion%201990-1.png" class="img-fluid figure-img" width="864"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>En ambos casos, a partir de la tabla y el gráfico podemos elegir dos componentes principales, ya que a partir de la tercera componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/circulo%20correlacion%20dim1-dim2%201990-1.png" class="img-fluid figure-img" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>En el primer gráfico vemos que las variables mejor representadas son <em>trastornos_embarazo</em> y <em>trastornos_mentales</em> ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, <em>enf_cardiovasculares</em> y <em>enf_sist_digestivo</em> son las peores representadas y las que menos contribuyen.</p>
+<p>En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando de nuevo <em>enf_sist_digestivo</em>.</p>
+<p>Podemos ver las contribuciones de cada variable al plano principal</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/contribuciones%20plano%20principal%201990-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Veamos también la calidad de representación de las variables:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/grafico%20barras%20cos2%201990-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Por último veamos una representación de los países en el plano principal con un biplot.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/biplots%201990%20dim1-dim2-1.png" class="img-fluid figure-img" width="1920"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="acp-2019" class="level3">
+<h3 class="anchored" data-anchor-id="acp-2019">ACP 2019</h3>
+<p>Veamos ahora un análisis en componentes principales donde tomaremos los datos de 2019 Construyamos primero este conjunto de datos.</p>
+<p>Veamos si hay alguna entrada que sea <span class="math inline">\(0\)</span>.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 1
+Columns: 1
+$ total_ceros &lt;int&gt; 3</code></pre>
+</div>
+</div>
+<p>Como hay tres <span class="math inline">\(0\)</span>, para poder realizar la transformación <em>clr</em> los tendremos que imputar. Los vamos a sustituir por <span class="math inline">\(0.65\)</span> y luego aplicaremos la transformación <em>clr</em> y centraremos los datos.</p>
+<p>Antes de realizar el método de componentes principales, observemos la matriz de varianzas-covarianzas y la matriz de correlación.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Matriz de varianzas-covarianzas</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                     enf_infec_paras enf_sist_nervioso enf_metabolicas
+enf_infec_paras           0.50859126      -0.188879484    -0.203368535
+enf_sist_nervioso        -0.18887948       0.181740084     0.036509456
+enf_metabolicas          -0.20336853       0.036509456     0.447966191
+causas_externas           0.12550729      -0.059608689    -0.075256237
+trastornos_embarazo       0.09990706      -0.201704868    -0.033725197
+trastornos_mentales       0.06902915      -0.004640053    -0.367425190
+enf_cardiovasculares      0.06809996      -0.031340707    -0.005104295
+infecciones_respi        -0.16172461       0.090810111     0.003668007
+enf_sist_digestivo        0.04564905      -0.022200970    -0.017793554
+neoplasias               -0.15977369       0.103777882     0.064437996
+enf_cronicas             -0.20303746       0.095537237     0.150091358
+                     causas_externas trastornos_embarazo trastornos_mentales
+enf_infec_paras           0.12550729          0.09990706         0.069029152
+enf_sist_nervioso        -0.05960869         -0.20170487        -0.004640053
+enf_metabolicas          -0.07525624         -0.03372520        -0.367425190
+causas_externas           0.13465224         -0.07596822         0.085789790
+trastornos_embarazo      -0.07596822          0.80571031        -0.277788773
+trastornos_mentales       0.08578979         -0.27778877         0.773436039
+enf_cardiovasculares      0.08555226         -0.06458445        -0.035954299
+infecciones_respi        -0.11214442         -0.03415891        -0.050903623
+enf_sist_digestivo        0.03767242         -0.07802604         0.003622927
+neoplasias               -0.05044647         -0.09907347        -0.029566658
+enf_cronicas             -0.09574996         -0.04058744        -0.165599313
+                     enf_cardiovasculares infecciones_respi enf_sist_digestivo
+enf_infec_paras               0.068099956      -0.161724607        0.045649054
+enf_sist_nervioso            -0.031340707       0.090810111       -0.022200970
+enf_metabolicas              -0.005104295       0.003668007       -0.017793554
+causas_externas               0.085552262      -0.112144421        0.037672416
+trastornos_embarazo          -0.064584451      -0.034158913       -0.078026044
+trastornos_mentales          -0.035954299      -0.050903623        0.003622927
+enf_cardiovasculares          0.155625043      -0.123189508        0.035891753
+infecciones_respi            -0.123189508       0.262793295       -0.031992401
+enf_sist_digestivo            0.035891753      -0.031992401        0.080486861
+neoplasias                   -0.010193369       0.046271607       -0.023352569
+enf_cronicas                 -0.074802383       0.110570452       -0.029957473
+                      neoplasias enf_cronicas
+enf_infec_paras      -0.15977369  -0.20303746
+enf_sist_nervioso     0.10377788   0.09553724
+enf_metabolicas       0.06443800   0.15009136
+causas_externas      -0.05044647  -0.09574996
+trastornos_embarazo  -0.09907347  -0.04058744
+trastornos_mentales  -0.02956666  -0.16559931
+enf_cardiovasculares -0.01019337  -0.07480238
+infecciones_respi     0.04627161   0.11057045
+enf_sist_digestivo   -0.02335257  -0.02995747
+neoplasias            0.08803582   0.06988292
+enf_cronicas          0.06988292   0.18365206</code></pre>
+</div>
+</div>
+<p>Podemos ver que los valores de las varianzas se agrupan entre <span class="math inline">\(0.08048686\)</span> y <span class="math inline">\(0.80571031\)</span>, siendo el valor mínimo de <em>enf_sist_digestivo</em> y el máximo de <em>trastornos_embarazo</em>. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>  enf_sist_digestivo           neoplasias      causas_externas 
+          0.08048686           0.08803582           0.13465224 
+enf_cardiovasculares    enf_sist_nervioso         enf_cronicas 
+          0.15562504           0.18174008           0.18365206 
+   infecciones_respi      enf_metabolicas      enf_infec_paras 
+          0.26279330           0.44796619           0.50859126 
+ trastornos_mentales  trastornos_embarazo 
+          0.77343604           0.80571031 </code></pre>
+</div>
+</div>
+<p>Por otro lado, la matriz de correlaciones es:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/matriz%20correlacion%202019-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>La mayor correlación positiva se encuentra entre <em>enf_sist_nervioso</em> y <em>neoplasias</em>, con un valor de <span class="math inline">\(0.63\)</span>. Por otro lado, la mayor correlación negativa se encuentra entre <em>enf_infec_paras</em> y <em>neoplasias</em>, con un valor de <span class="math inline">\(-0.69\)</span>.</p>
+<p>Pasemos al estudio de las componentes principales. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Vectores propios (datos sin escalar)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                             PC1          PC2         PC3         PC4
+enf_infec_paras       0.34619040  0.424927156 -0.33379882 -0.50371224
+enf_sist_nervioso    -0.09492599 -0.318413767  0.07719849 -0.12070717
+enf_metabolicas      -0.45705734 -0.116580851 -0.34765585  0.35377684
+causas_externas       0.19151091  0.058272969 -0.25986495  0.10815291
+trastornos_embarazo  -0.24294120  0.727772175  0.48272708  0.25754526
+trastornos_mentales   0.66673668 -0.252566015  0.39013552  0.37016757
+enf_cardiovasculares  0.07224240  0.047474401 -0.35890929  0.20420442
+infecciones_respi    -0.15871467 -0.182904657  0.37031904 -0.56959874
+enf_sist_digestivo    0.06147876 -0.009273131 -0.17317681 -0.08164851
+neoplasias           -0.10892796 -0.196999932  0.05060420  0.08714172
+enf_cronicas         -0.27559199 -0.181708350  0.10242138 -0.10532207
+                             PC5          PC6          PC7         PC8
+enf_infec_paras      -0.29638923 -0.381854289  0.049010800  0.03921500
+enf_sist_nervioso     0.34007237 -0.483649750  0.012690829  0.12719258
+enf_metabolicas      -0.59725001  0.004788536  0.242389561  0.06751176
+causas_externas       0.16422376  0.285974683 -0.083456928 -0.65042540
+trastornos_embarazo   0.09257392 -0.022708844 -0.009058321  0.04245428
+trastornos_mentales  -0.30184144 -0.016277905  0.033608523  0.03829139
+enf_cardiovasculares  0.49429166  0.132070359  0.315358557  0.02114156
+infecciones_respi    -0.08398661  0.436395612  0.425416043 -0.08865792
+enf_sist_digestivo    0.05923504  0.474759988 -0.480916016  0.61926268
+neoplasias            0.22254257 -0.292755348  0.129095599  0.15304934
+enf_cronicas         -0.09347202 -0.136743041 -0.634138647 -0.36903528
+                             PC9        PC10       PC11
+enf_infec_paras       0.06638855 -0.03906106 -0.3015113
+enf_sist_nervioso    -0.43338032  0.47374993 -0.3015113
+enf_metabolicas      -0.10204456  0.10060630 -0.3015113
+causas_externas      -0.48251337 -0.13492045 -0.3015113
+trastornos_embarazo  -0.07777224  0.06359700 -0.3015113
+trastornos_mentales   0.10188173  0.08476376 -0.3015113
+enf_cardiovasculares  0.55788866  0.24124311 -0.3015113
+infecciones_respi     0.04911042  0.01103551 -0.3015113
+enf_sist_digestivo   -0.15468751 -0.03111344 -0.3015113
+neoplasias            0.01658925 -0.82016236 -0.3015113
+enf_cronicas          0.45853940  0.05026171 -0.3015113</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Vectores propios (datos escalados)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                             PC1         PC2           PC3         PC4
+enf_infec_paras       0.39122371  0.14481673  0.0639044354 -0.12036767
+enf_sist_nervioso    -0.35144464 -0.38216854  0.0701850779  0.08799479
+enf_metabolicas      -0.23232201  0.10633036 -0.5512650531 -0.03912780
+causas_externas       0.36863575 -0.26824478 -0.1254114537  0.05983561
+trastornos_embarazo   0.06685761  0.62919310 -0.0001664663  0.23971289
+trastornos_mentales   0.14908854 -0.32357128  0.5530765557  0.14911181
+enf_cardiovasculares  0.24424743 -0.28261029 -0.4425968217  0.26500047
+infecciones_respi    -0.31844802  0.09794381  0.3237860835 -0.39207879
+enf_sist_digestivo    0.19064000 -0.24949876 -0.2008588335 -0.74088601
+neoplasias           -0.37579571 -0.30462086 -0.0784183014  0.29828111
+enf_cronicas         -0.41016526  0.06801847 -0.1351010989 -0.17642539
+                             PC5          PC6         PC7         PC8
+enf_infec_paras      -0.06275309 -0.587668038 -0.51747266 -0.01933878
+enf_sist_nervioso    -0.27127126 -0.197292137 -0.23405653 -0.24017899
+enf_metabolicas       0.54639573 -0.050038047 -0.05030050  0.38073988
+causas_externas       0.13647847 -0.221448523  0.58752347 -0.35730011
+trastornos_embarazo  -0.29490006  0.391695745  0.05891959 -0.18761021
+trastornos_mentales   0.40697814  0.308285153 -0.01826786  0.11914876
+enf_cardiovasculares -0.41765804 -0.004038755  0.17611873  0.25739743
+infecciones_respi    -0.29270444 -0.262797433  0.46309523  0.42676175
+enf_sist_digestivo   -0.16553974  0.464798407 -0.16740447 -0.07949410
+neoplasias           -0.19448581  0.143477494 -0.19783585  0.05473142
+enf_cronicas          0.16540789 -0.100056938  0.11524809 -0.60185211
+                              PC9        PC10       PC11
+enf_infec_paras      -0.070573022  0.21115226 -0.3746872
+enf_sist_nervioso     0.357453787 -0.56110941 -0.2239803
+enf_metabolicas       0.207936081 -0.11771991 -0.3516471
+causas_externas       0.396502113  0.19480251 -0.1927930
+trastornos_embarazo   0.192146693 -0.06161207 -0.4716001
+trastornos_mentales  -0.221232826 -0.08546003 -0.4620582
+enf_cardiovasculares -0.494675476 -0.18700098 -0.2072642
+infecciones_respi     0.005558498  0.08088057 -0.2693343
+enf_sist_digestivo    0.097545898  0.05131505 -0.1490551
+neoplasias            0.129838404  0.72743271 -0.1558885
+enf_cronicas         -0.556617147  0.06605206 -0.2251554</code></pre>
+</div>
+</div>
+<p>En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable <em>trastornos_mentales</em> y apenas le da peso a <em>enf_sist_digestivo</em>, <em>enf_cardiovasculares</em> y <em>enf_sist_nervioso</em>. Considerando la segunda componente, vemos que seguimos sin darle peso a <em>enf_cardiovasculares</em> y <em>enf_sist_digestivo</em>.</p>
+<p>Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>Valores propios (datos sin escalar)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         eigenvalue variance.percent cumulative.variance.percent
+Dim.1  1.269510e+00     3.504332e+01                    35.04332
+Dim.2  1.090334e+00     3.009737e+01                    65.14069
+Dim.3  5.758554e-01     1.589580e+01                    81.03649
+Dim.4  2.595054e-01     7.163336e+00                    88.19983
+Dim.5  1.724683e-01     4.760782e+00                    92.96061
+Dim.6  9.611418e-02     2.653117e+00                    95.61373
+Dim.7  6.173459e-02     1.704110e+00                    97.31784
+Dim.8  5.007102e-02     1.382150e+00                    98.69999
+Dim.9  3.487194e-02     9.625983e-01                    99.66259
+Dim.10 1.222348e-02     3.374144e-01                   100.00000
+Dim.11 5.427993e-30     1.498332e-28                   100.00000</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Valores propios (datos escalados)</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>         eigenvalue variance.percent cumulative.variance.percent
+Dim.1  4.374584e+00     3.976894e+01                    39.76894
+Dim.2  1.986454e+00     1.805868e+01                    57.82762
+Dim.3  1.708097e+00     1.552816e+01                    73.35578
+Dim.4  9.423924e-01     8.567204e+00                    81.92298
+Dim.5  5.545811e-01     5.041646e+00                    86.96463
+Dim.6  4.707434e-01     4.279485e+00                    91.24411
+Dim.7  3.649503e-01     3.317730e+00                    94.56184
+Dim.8  2.987460e-01     2.715873e+00                    97.27772
+Dim.9  1.967077e-01     1.788252e+00                    99.06597
+Dim.10 1.027436e-01     9.340330e-01                   100.00000
+Dim.11 1.684313e-29     1.531194e-28                   100.00000</code></pre>
+</div>
+</div>
+<p>A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el <span class="math inline">\(65\%\)</span> de la variación total con los datos sin escalar; y el <span class="math inline">\(58\%\)</span> con los datos escalados. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/porcentajes%20variacion%202019-1.png" class="img-fluid figure-img" width="864"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>En ambos casos, a partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/circulo%20correlacion%20dim1-dim2%202019-1.png" class="img-fluid figure-img" width="960"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>En el primer gráfico vemos que las variables mejor representadas son <em>trastornos_embarazo</em> y <em>trastornos_mentales</em> ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, <em>enf_cardiovasculares</em> y <em>enf_sist_digestivo</em> son las peores representadas y las que menos contribuyen.</p>
+<p>En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando algunas causas, aunque en este caso la diferencia no es tan grande.</p>
+<p>Podemos ver las contribuciones de cada variable al plano principal</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/contribuciones%20plano%20principal%202019-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Veamos también la calidad de representación de las variables:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/grafico%20barras%20cos2%202019-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Por último veamos una representación de los países en el plano principal con un biplot.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/biplots%202019%20dim1-dim2-1.png" class="img-fluid figure-img" width="1920"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Como resumen de estos seis ACP, podemos ver las representaciones en el siguiente gráfico.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="analisis_exploratorio_files/figure-html/resumen%20ACPs-1.png" class="img-fluid figure-img" width="1920"></p>
+</figure>
+</div>
+</div>
+</div>
 </section>
 </section>
 <section id="análisis-en-coordenadas-principales" class="level2">
@@ -823,7 +1371,7 @@ Attaching package: 'MASS'</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Computational iterations: 6 
-Computational time: 0.002 minutes </code></pre>
+Computational time: 0.001 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
@@ -893,7 +1441,7 @@ Number of Groups: 46 </code></pre>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
 <pre><code>Computational iterations: 17 
-Computational time: 0.004 minutes </code></pre>
+Computational time: 0.005 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
@@ -964,7 +1512,7 @@ Number of Groups: 46 </code></pre>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
 <pre><code>Computational iterations: 14 
-Computational time: 0.004 minutes </code></pre>
+Computational time: 0.003 minutes </code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Linear mixed-effects model fit by maximum likelihood
