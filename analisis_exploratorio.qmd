@@ -10,6 +10,8 @@ execute:
   echo: false
   message: false
 embed-resources: true
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ## 1 - Introducción
@@ -21,15 +23,28 @@ Esta tabla de datos contiene información sobre las causas de muerte en la mayor
 Primero de todo cargaremos las librerías necesarias para realizar el análisis.
 
 ```{r librerias, include=FALSE}
+# 1
 library(readxl)
 library(tidyverse)
-library(compositions)
-library(psych)
-library(NBZIMM)
-library(factoextra)
+
+# 2
 library(ggplot2)
-library(ggfortify)
+
+# 3
+library(compositions)
+
+# 4
+library(ggcorrplot)
+
+# 6
+library(factoextra)
 library(gridExtra)
+
+# 7
+library(ggpubr)
+
+# 8
+library(NBZIMM)
 ```
 
 Ahora, carguemos nuestra base de datos y presentemos un resumen.
@@ -38,19 +53,20 @@ Ahora, carguemos nuestra base de datos y presentemos un resumen.
 data <- read_excel("causas_muerte.xls") %>% 
   # Transformamos la variable año en ordinal
   mutate(año = as.ordered((año))) %>% 
-  # Creamos una variables con el total de muertes
+  # Creamos una variable con el total de muertes
   rowwise() %>%  mutate(total_muertes = sum(c_across(meningitis:hepatitis_aguda)), .after = hepatitis_aguda) %>% ungroup()
 
 data %>% glimpse
 ```
 
+
 ### 1.1 - Descripción de las variables
 
 Realicemos una pequeña descripción de cada variable:
 
--   *pais*: país del que proceden los datos. Veamos cuántos países se recogen.
+-   *pais*: país del que proceden los datos. Veamos los países que se recogen.
 
-```{r numero paises}
+```{r paises}
 data[, "pais"] %>% unique
 ```
 
@@ -64,21 +80,7 @@ data[, "año"] %>% table
 
 -   *población*: número de habitantes de cada país en cada año.
 
-Las variables desde la columna *meningitis* hasta *hepatitis_aguda* recogen el número de muertes por la causa que da nombre a la variable en cada país y cada año. Nos interesa saber cuantos conteos de ceros hay en cada variable. Lo vemos en la siguiente tabla:
-
-```{r conteo ceros}
-causas_muerte <- data %>% dplyr::select(meningitis:hepatitis_aguda) 
-
-tabla_ceros <- causas_muerte %>% summarise(across(everything(), ~ sum(. == 0)))
-
-tabla_ceros %>% glimpse
-```
-
-```{r porcentaje ceros}
-100*sum(tabla_ceros) / (nrow(causas_muerte)*ncol(causas_muerte))
-```
-
-Observamos que en las causas de muerte hay aproximadamente un 7,78% de ceros. Sin embargo, en algunas variables este porcentaje supera el 50%, por lo que estamos ante un modelo con exceso de ceros o *ZI* (por sus siglas en inglés *Zero-inflated model*). Esta característica la tendremos que tener en cuenta en el análisis.
+Las variables desde la columna *meningitis* hasta *hepatitis_aguda* recogen el número de muertes por la causa que da nombre a la variable en cada país y cada año.
 
 -   *total_muertes*: Es el número de muertes totales que ha habido en cada año en cada país. Es la suma de todas las causas de muerte.
 
@@ -98,132 +100,56 @@ Observamos que en las causas de muerte hay aproximadamente un 7,78% de ceros. Si
 
 -   *emisiones_CO2_per_capita*: cantidad de CO2 emitido per cápita en toneladas.
 
-## 2 - Tratamiento de datos composicionales
 
-Las variables que nos dan información sobre las causas de muerte tienen naturaleza composicional. En efecto, todas las entradas son positivas, ya que son conteos de muertes; y la única información relevante en cada fila es la contenida en su vector de proporciones, ya que este nos da el porcentaje de muertes por cada causa.
 
-Antes de poder aplicar técnicas de análisis de datos composicionales hay que tratar los datos siguiendo los pasos siguientes:
+## 2 - Transformación de datos
 
-1.  Se sustituyen (*imputan*) los ceros.
+En este apartado realizaremos una transformación a la base de datos con el objetivo de simplificar el posterior análisis. Estas transformaciones incluyen la reducción de países, la agrupación de causas de muerte y la eliminación de algunas covariables
 
-2.  Se transforman logarítmicamente los datos.
 
-### 2.1 - Imputación de ceros
+### 2.1 - Reducción de países
 
-Hay varias estrategias para imputar ceros. Nosotros sustituiremos los ceros por 0,65 ya que el porcentaje de ceros es menor al 10%.
-
-```{r imputacion ceros}
-causas_muerte_imp <- causas_muerte %>% mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
-```
-
-### 2.2 - Transformación CLR
-
-Utilizaremos la transformación logarítmica centrada, que consiste en dividir cada entrada por la media geométrica de la fila y aplicarle un logaritmo.
-
-```{r transformacion clr}
-causas_muerte_clr <- causas_muerte_imp %>% clr %>% as_tibble()
-data_clr <- data
-data_clr[, 5:35] <- causas_muerte_clr
-
-causas_muerte_clr %>% glimpse
-```
-
-## 3 - Matriz de correlaciones
-
-Analicemos la matriz de correlaciones de las causas de muerte y las covariables. Usaremos la correlación de Spearman y no la de Pearson ya que nuestras variables de interés, las causas de muerte, son discretas.
-
-```{r matriz correlacion, fig.height=15, fig.width=30}
-data_clr %>%
-  dplyr::select(where(is.numeric)) %>%
-  cor(., method = "spearman") %>% 
-  corPlot(., cex = 1, xsrt = 30, cex.axis = 1, main = "Matriz de correlaciones")
-```
-
-Fijémonos primero en las correlaciones entre causas de muerte y covariables. La variable *población* apenas tiene correlación con las causas de muerte. En *pib*, *emisiones_CO2* y *emisiones_CO2_PIB* tampoco vemos muchas correlaciones altas. Estas se ven sobre todo en *emisiones_CO2_per_capita* y en las variables que explican la esperanza de vida, incluido el IDH ya que la esperanza de vida es un factor importante a la hora de calcular el índice y se puede ver en la alta correlación entre el IDH y la esperanza de vida. Estas variables están altamente correlacionadas con muchas causas de muerte, tanto positivamente como negativamente. Veamos a qué se podría deber esto. Normalmente, la poca esperanza de vida y las pocas emisiones de CO2 per cápita se suelen asociar a países pocos desarrollados y podemos ver en las correlaciones negativas las enfermedades que suelen ser comunes en estos países: meningitis, deficiencias nutricionales, malaria, enfermedades diarreicas, etc. Luego, en las correlaciones positivas, podemos ver enfermedades asociadas con la vejez: alzheimer, parkinson y enfermedades cardiovasculares; así como trastornos como consecuencia de drogas o alcohol, autolesiones, neoplasias (cánceres), enfermedades crónicas, etc.
-
-Por último, vemos que hay algunas enfermedades bastante correlacionadas y otras que no. La correlación positiva que más destaca es entre deficiencias nutricionales y desnutrición energética (causas muy parecidas), con un valor de $0.98$; mientras que la correlación negativa más destacada es entre neoplasias y trastornos maternos, con un valos de $-0.89$. Las dos correlaciones más pequeñas con un valor de $0.00$ corresponden a infecciones respiratorias con malaria; e infecciones respiratorias con neoplasias.
-
-Cabe destacar el caso de la variable *total_muertes* que no tiene ninguna correlación considerable exceptuando con *población* (obviamente), *emisiones_CO2* y *pib*, aunque estas dos últimas también están altamente correlacionadas con *población*.
-
-## 4 - Tendencias temporales
-
-En este apartado vamos a estudiar de manera global las tendencias temporales de cada enfermedad.
-
-Vamos a trabajar con un tibble donde sumaremos todas las causas por cada año, con lo que nos quedarán $30$ filas, una para cada año, y los conteos serán mundiales.
-
-```{r data mundial}
-causas_muerte_global <- data %>% dplyr::select(año, meningitis:hepatitis_aguda) %>% group_by(año) %>% summarise(across(everything(), ~ sum(.)), .groups = "drop")
-
-causas_muerte_global %>% glimpse
-```
-
-Ahora lo transformamos en una serie temporal y elaboramos los gráficos.
-
-```{r serie temporal}
-causas_muerte_global.ts <- ts(causas_muerte_global[-1], start = c(1990), end = c(2019), frequency = 1)
-```
-
-```{r graficos 1, fig.height=10, fig.width=10}
-plot.ts(causas_muerte_global.ts[, 1:10], main = "")
-```
-
-En estos primeros diez gráficos podemos observar un claro descenso constante del número de muertes por meningitis, deficiencias nutricionales, ahogo y transtornos maternos. A partir del 2010 también hay un descenso de las muertes por malaria. Por otro lado, hay un aumento constante de las muertes por alzheimer, parkinson y trantornos por consecuencia de drogas. Luego, el VIH alcanzó el máximo de muertes en 2004 y desde entonces han ido bajando. De forma similar, las muertes por violencia interpersonal alcanzaron el máximo en 2002 y después bajaron hasta mantenerse alrededor de 420000 muertes, un número superior a las 380000 muertes en 1990.
-
-```{r graficos 2, fig.height=10, fig.width=10}
-plot.ts(causas_muerte_global.ts[, 11:20], main = "")
-```
-
-Aquí podemos apreciar el descenso de muertes en tuberculosis, infecciones respiratorias, trastornos neonatales y enfermedades diarreicas. En cuanto ascenso de muertes podemos ver las causas enfermedades cardiovasculares, trastornos como consecuencia del alcohol y neoplasias. Por otro lado, las autolesiones y exposiciones al ambiente y temperatura tuvieron una subida con posterior bajada de tal forma que en 2019 hay los mismos conteos que en 1990 aproximadamente. Cabe destacar el caso de la exposición a las fuerzas de la naturaleza, con un nivel aproximadamente constante por debajo de 50000 exceptuando algunos años que rozan las 250000 muertes.
-
-```{r graficos 3, fig.height=7, fig.width=10}
-plot.ts(causas_muerte_global.ts[, 21:26], main = "")
-```
-
-```{r graficos 4, fig.height=6, fig.width=10}
-plot.ts(causas_muerte_global.ts[, 27:31], main = "")
-```
-
-En estos últimos once gráficos podemos ver un ascenso en diabetes mellitus, enfermedades crónicas, cirrosis crónicas, enfermedades digestivas y lesiones carretera, aunque esta última ha bajado con respecto a los últimos diez años. También vemos un descenso en envenenamientos, desnutriciones energéticas, exposición al fuego y sustancias calientes y hepatitis aguda. Las causas por conflictos terroristas han mantenido un nivel relativamente constante alrededor de 10000 muertes con un pico en 50000 en el año 1994.
-
-## 5 - Análisis en componentes principales
-
-En este apartado realizaremos un análisis en componentes principales (ACP). Nos restringiremos a los datos que proporcionan los países europeos. Primero vamos a filtrar los países de este continente en nuestra base de datos.
+Primero de todo, nos restringiremos a los datos que nos proporcionan los países europeos para así reducir el número de individuos. Filtremos los países de este continente en nuestra base de datos.
 
 ```{r datos europa}
 # Lista de países de Europa
-paises_eu <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán", 
-                   "Bélgica", "Bielorrusia", "Bosnia-Herzegovina", "Bulgaria", 
-                   "Chipre", "Croacia", "Dinamarca", "Eslovaquia", "Eslovenia", 
-                   "España", "Estonia", "Finlandia", "Francia",
-                   "Georgia (desambiguación)", "Grecia", "Hungría", "Islandia", 
-                   "Irlanda (isla)", "Italia", "Kazajistán", "Letonia", "Lituania",
-                   "Luxemburgo", "Malta", "Moldavia", "Mónaco", "Montenegro",
-                   "Noruega", "Países Bajos", "Polonia", "Portugal", "Reino Unido",
-                   "Republica Checa", "República de Macedonia", "Rumania", "Rusia",
-                   "Serbia", "Suecia", "Suiza", "Turquía", "Ucrania")
+paises_eu <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán",
+               "Bélgica", "Bielorrusia", "Bosnia-Herzegovina", "Bulgaria", "Chipre",
+               "Croacia", "Dinamarca", "Eslovaquia", "Eslovenia", "España",
+               "Estonia", "Finlandia", "Francia", "Georgia (desambiguación)", "Grecia",
+               "Hungría", "Irlanda (isla)", "Islandia", "Italia", "Kazajistán",
+               "Letonia", "Lituania", "Luxemburgo", "Malta", "Moldavia",
+               "Mónaco", "Montenegro", "Noruega", "Países Bajos", "Polonia",
+               "Portugal", "Reino Unido", "Republica Checa", "República de Macedonia", "Rumania",
+               "Rusia", "Serbia", "Suecia", "Suiza", "Turquía",
+               "Ucrania")
 
 # Filtramos los datos
 data_eu <- data %>% filter(pais %in% paises_eu)
 ```
 
-Antes de realizar el ACP veamos cómo se distribuyen las muertes totales por año.
 
-```{r distribucion muertes por año, fig.width=15, fig.height=10}
-total_muertes_año_eu <- data_eu %>% select(año, meningitis:hepatitis_aguda) %>% group_by(año) %>% summarise(across(everything(), ~ sum(.)))
+### 2.2 - Agrupación de causas de muerte
 
-total_muertes_año_eu %>% 
+Veamos la distribución temporal de la cantidad de defunciones de cada causa mediante gráficos de cajas.
+
+```{r distribucion muertes}
+total_muertes_año <- data_eu %>%
+  select(año, meningitis:hepatitis_aguda) %>%
+  group_by(año) %>%
+  summarise(across(everything(), ~ sum(.)))
+
+total_muertes_año %>% 
   pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
   mutate(cm = factor(causa_muerte)) %>% 
   ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte)) +
-  #geom_violin(trim = FALSE, fill = "lightblue", width = 2) +
-  geom_boxplot(width = 0.5, color = "black", alpha = 0.6) +
-  #scale_y_log10() +
+  geom_boxplot(width = 0.75, color = "black") +
   theme_minimal() +
   labs(x = "Causa de muerte", y = "Número de muertes") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-Como podemos ver, hay algunas causas de defunción que apenas causan impacto. Por ello, con el objetivo de reducir dimensionalidad, vamos a agruparlas siguiendo el criterio de la OMS en [este enlace](https://icd.who.int/browse/2024-01/mms/en). Los grupos que nos quedan son los siguientes:
+Como podemos ver, hay algunas causas de muerte que apenas causan impacto. Por ello, con el objetivo de reducir dimensionalidad, vamos a agruparlas siguiendo el criterio de la OMS en [este enlace](https://icd.who.int/browse/2024-01/mms/en). Los grupos que nos quedan son los siguientes:
 
 -   Enfermedades infecciosas o parasitarias (*enf_infec_paras*). En este grupo incluimos *meningitis*, *malaria*, *VIH* y *tuberculosis*.
 
@@ -231,9 +157,9 @@ Como podemos ver, hay algunas causas de defunción que apenas causan impacto. Po
 
 -   Enfermedades endocrinas, nutricionales o metabólicas (*enf_metabolicas*). En este grupo incluimos *def_nutricionales*, *diabetes_mellitus* y *desnutrición_energetica*.
 
--   Causas externas de morbilidad o mortalidad, lesiones y envenenamientos (*causas_externas*). En este grupo incluimos *ahogo*, *violencia_inter*, *autolesiones*, *exp_fuer_naturaleza*, *conflicto_terrorismo*, *lesiones_carretera*, *exp_amb_temperatura*, *envenenamientos* y *fuego_calientes*. `r #Aquí he juntado los grupos "otras causas", "causas externas de morbilidad o mortalidad" y "lesiones, envenenamientos u otras consecuencias de causas externas"`
+-   Causas externas de morbilidad o mortalidad, lesiones y envenenamientos (*causas_externas*). En este grupo incluimos *ahogo*, *violencia_inter*, *autolesiones*, *exp_fuer_naturaleza*, *conflicto_terrorismo*, *lesiones_carretera*, *exp_amb_temperatura*, *envenenamientos* y *fuego_calientes*.
 
--   Causas relacionadas con el embarazo, parto o puerperio (en la madre) y afecciones en el periodo perinatal (en el hijo) (*trastornos_embarazo*). En este grupo incluimos *trastornos_maternos* y *trastornos_neonatales*. `r #Aquí he juntado los grupos "embarazo, parto o puerperio" y "afecciones originadas en el período perinatal"`
+-   Causas relacionadas con el embarazo, parto o puerperio (en la madre) y afecciones en el periodo perinatal (en el hijo) (*trastornos_embarazo*). En este grupo incluimos *trastornos_maternos* y *trastornos_neonatales*.
 
 -   Trastornos mentales, del comportamiento o del desarrollo neurológico (*trastornos_mentales*). En este grupo incluimos *trastornos_cons_drogas* y *trastornos_Cons_alcohol*.
 
@@ -249,7 +175,7 @@ Como podemos ver, hay algunas causas de defunción que apenas causan impacto. Po
 
 Creemos la nueva base de datos con las causas de muerte agrupadas.
 
-```{r causas agrupadas}
+```{r datos causas agrupadas}
 data_eu_agrupado <- data_eu %>%
   mutate(
     enf_infec_paras = rowSums(select(., meningitis, malaria, VIH, tuberculosis)),
@@ -279,709 +205,941 @@ data_eu_agrupado <- data_eu %>%
   relocate(neoplasias, .after = enf_sist_digestivo)
 ```
 
-Veamos de nuevo cómo se distribuyen las muertes totales por año, ahora con la nueva agrupación.
+Veamos de nuevo la distribución temporal de la cantidad de defunciones de cada causa, ahora con la nueva agrupación.
 
-```{r distribucion muertes agrupadas por año, fig.height=10}
-total_muertes_agrupadas_año_eu <- data_eu_agrupado %>% select(año, enf_infec_paras:enf_cronicas) %>% group_by(año) %>% summarise(across(everything(), ~ sum(.)))
+```{r distribucion muertes agrupadas}
+total_muertes_agrupadas_año <- data_eu_agrupado %>%
+  select(año, enf_infec_paras:enf_cronicas) %>%
+  group_by(año) %>%
+  summarise(across(everything(), ~ sum(.)))
 
-total_muertes_agrupadas_año_eu %>% 
+total_muertes_agrupadas_año %>% 
   pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
   mutate(cm = factor(causa_muerte)) %>% 
   ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte)) +
-  #geom_violin(trim = FALSE, fill = "lightblue", width = 2) +
-  geom_boxplot(width = 0.5, color = "black", alpha = 0.6) +
-  #scale_y_log10() +
+  geom_boxplot(width = 0.5, color = "black") +
   theme_minimal() +
   labs(x = "Causa de muerte", y = "Número de muertes") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-### ACP medianas temporales
 
-Haremos un primer análisis con un conjunto de datos donde para cada país tendremos la mediana de cada causa de muerte con respecto al tiempo. Construyamos primero este conjunto de datos.
+### 2.3 - Eliminación de algunas covariables
 
-```{r mediana temporal muertes}
-data_eu_agrupado_medianas <- data_eu_agrupado %>%
-  group_by(codigo_Pais) %>%
-  summarise(across(enf_infec_paras:enf_cronicas, median)) %>%
-  ungroup() 
+Recordemos que las covariables que tenemos son *población*, *pib*, *idh*, *esperanza_vida_m*, *esperanza_vida_h*, *esperanza_vida*, *emisiones_CO2*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita*. Sin embargo, notemos que nos proporcionan información redundante. El Índice de Desarrollo Humano se calcula a partir del PIB y de la esperanza de vida, así que nos podríamos deshacer de estas variables. Además, *emisiones_CO2_per_capita* y *emisiones_CO2_PIB*, son derivadas de *emisiones_CO2*, la cual está muy relacionadas con el PIB. En efecto, podemos ver las correlaciones que tienen las variables entre sí en la siguiente matriz de correlaciones.
+
+```{r matriz correlaciones covariables}
+data_eu_agrupado %>%
+  dplyr::select(poblacion, pib:emisiones_CO2_per_capita) %>%
+  cor() %>%
+  ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
+             title = "Matriz de correlaciones de las covariables")
 ```
 
-Ahora, le aplicaremos la transformación *clr* y centraremos los datos. Notemos que no va a hacer falta imputar ceros ya que en ningún grupo de causas la mediana es 0.
+De esta forma, dejaremos únicamente las covariables *poblacion* e *idh* en la base de datos.
+
+```{r eliminacion covariables}
+new_data <- data_eu_agrupado %>%
+  dplyr::select(-starts_with("emisiones"), -starts_with("esperanza"), -pib)
+
+new_data %>% glimpse
+```
+
+
+
+## 3 - Tratamiento de datos composicionales
+
+Las variables que nos dan información sobre las causas de muerte tienen naturaleza composicional. En efecto, todas las entradas son positivas, ya que son conteos de muertes; y la única información relevante en cada fila es la contenida en su vector de proporciones, ya que este nos da el porcentaje de muertes por cada causa.
+
+Antes de poder aplicar técnicas de análisis de datos composicionales hay que tratar los datos siguiendo los pasos siguientes:
+
+1.  Se sustituyen (*imputan*) los ceros.
+
+2.  Se transforman logarítmicamente los datos.
+
+
+### 3.1 - Imputación de ceros
+
+Hay varias estrategias para imputar ceros. Primero, nos interesa saber cuantos conteos de ceros hay en cada variable. Lo vemos en la siguiente tabla:
+
+```{r conteo ceros}
+causas_muerte <- new_data %>%
+  dplyr::select(enf_infec_paras:enf_cronicas)
+
+tabla_ceros <- summarise(causas_muerte, across(everything(), ~ sum(. == 0)))
+
+tabla_ceros %>% glimpse
+```
+
+La siguiente salida nos da el porcentaje de ceros:
+
+```{r porcentaje ceros}
+100*sum(tabla_ceros) / (nrow(causas_muerte)*ncol(causas_muerte))
+```
+
+Como el porcentaje de ceros es menor a $10\%$, los sustituiremos por $0,65$.
+
+```{r imputacion ceros}
+causas_muerte_imp <- causas_muerte %>%
+  mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
+```
+
+
+### 3.2 - Transformación CLR
+
+Utilizaremos la transformación logarítmica centrada, que consiste en dividir cada entrada por la media geométrica de la fila y aplicarle un logaritmo.
+
+```{r transformacion clr}
+new_data_clr <- new_data
+
+new_data_clr[, 5:15] <- causas_muerte %>% 
+  # Imputación de ceros
+  mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65))) %>% 
+  clr %>%
+  as_tibble()
+
+new_data_clr %>% glimpse
+```
+
+
+
+## 4 - Matriz de correlaciones
+
+Analicemos la matriz de correlaciones de las causas de muerte y las covariables. Usaremos la correlación de Spearman y no la de Pearson ya que nuestras variables de interés, las causas de muerte, son discretas.
+
+```{r matriz correlaciones}
+new_data_clr %>%
+  dplyr::select(where(is.numeric)) %>%
+  cor(., method = "spearman") %>% 
+  ggcorrplot(type = "upper", lab = TRUE, lab_size = 2.25, colors = c("red", "white", "blue"),
+             title = "Matriz de correlaciones")
+```
+
+Fijémonos primero en las correlaciones entre causas de muerte y covariables. La variable *población* apenas tiene correlación con las causas de muerte. Por otro lado, la variable *idh* presenta altas correlaciones con algunas causas, tanto positivamente como negativamente. Esto es debido a que un IDH bajo corresponde a países poco desarrollados y podemos ver en las correlaciones negativas enfermedades que suelen ser comunes en estos países: enfermedades infecciosas y parasitarias, las cuales recordemos que engloban a meningitis, malaria, VIH y tuberculosis; y trastornos del embarazo, los cuales engloban trastornos maternos y neonatales. Luego, en las correlaciones positivas, podemos ver enfermedades del sistema nervioso, que engloba alzheimer y parkinson; neoplasias y enfermedades crónicas.
+
+Por último, vemos que hay algunas enfermedades bastante correlacionadas y otras que no. La correlación positiva que más destaca es entre enfermedades del sistema nervioso y neoplasias, con un valor de $0.82$; mientras que la correlación negativa más destacada es entre enfermedades del sistema nervioso y trastornos del embarazo, con un valos de $-0.72$. La correlaciones más pequeña en valor absoluto, con un valor de $0$, corresponde a enfermedades metabólicas con infecciones respiratorias.
+
+Cabe destacar el caso de la variable *total_muertes* que no tiene ninguna correlación considerable exceptuando con *población*, que es una correlación obvia.
+
+
+
+## 5 - Tendencias temporales
+
+En este apartado vamos a estudiar las tendencias temporales de cada causa
+
+Vamos a trabajar con un tibble donde hay $30$ filas, una para cada año, donde los conteos de cada enfermedad son la suma de los conteos en todos los países de Europa en ese año.
+
+```{r muertes totales por año}
+total_muertes_agrupadas_año %>% 
+  glimpse
+```
+
+Ahora lo transformamos en una serie temporal y elaboramos los gráficos.
+
+```{r serie temporal}
+total_muertes_agrupadas_año.ts <- ts(total_muertes_agrupadas_año[-1], start = c(1990), end = c(2019), frequency = 1)
+```
+
+```{r graficos 1, fig.width=10, fig.height=4}
+# Sin notación científica
+options(scipen = 5)
+
+par(mfrow = c(1, 2), las = 1)
+
+plot.ts(total_muertes_agrupadas_año.ts[, "enf_infec_paras"], ylab = "",
+        xlab = "Año", main = "Enfermedades infecciosas y parasitarias")
+plot.ts(total_muertes_agrupadas_año.ts[, "causas_externas"], ylab = "",
+        xlab = "Año", main = "Causas externas")
+```
+
+En estos primeros dos gráficos vemos un comportamiento alcista durante los primeros años hasta alcanzar sus máximos alrededor de 1995, para luego seguir con un comportamiento bajista y acabar en 2019 con una cantidad inferior a la cantidad de muertes iniciales, aunque en el segundo gráfico es bastante más inferior que en el primero.
+
+```{r graficos 2, fig.width=10, fig.height=9}
+par(mfrow = c(3, 2), las = 1)
+
+plot.ts(total_muertes_agrupadas_año.ts[, "enf_sist_nervioso"], ylab = "",
+        xlab = "Año", main = "Enfermedades del sistema nervioso")
+plot.ts(total_muertes_agrupadas_año.ts[, "enf_metabolicas"], ylab = "",
+        xlab = "Año", main = "Enfermedades metabólicas")
+plot.ts(total_muertes_agrupadas_año.ts[, "enf_sist_digestivo"], ylab = "",
+        xlab = "Año", main = "Enfermedades del sistema digestivo")
+plot.ts(total_muertes_agrupadas_año.ts[, "neoplasias"], ylab = "",
+        xlab = "Año", main = "Neoplasias")
+plot.ts(total_muertes_agrupadas_año.ts[, "enf_cronicas"], ylab = "",
+        xlab = "Año", main = "Enfermedades crónicas")
+```
+
+En estos cuatro gráficos podemos ver una clara tendencia alcista del número de muertes. Sin embargo, las defunciones por enfermedades del sistema digestivo se han estabilizado entre $550000$ y $600000$ a partir de 2005, y en las defunciones por enfermedades crónicas tenemos la tendencia alcista a partir de 2006.
+
+```{r graficos 3, fig.width=5, fig.height=4}
+par(mfrow = c(1, 1), las = 1)
+
+plot.ts(total_muertes_agrupadas_año.ts[, "trastornos_embarazo"], ylab = "",
+        xlab = "Año", main = "Trastornos del embarazo")
+```
+
+En este gráfico podemos apreciar una clara tendencia bajista, siendo la cantidad de muertes de 2019 más de un $75\%$ inferior a la cantidad de 1990.
+
+```{r graficos 4, fig.width=10, fig.height=6}
+par(mfrow = c(2, 2), las = 1)
+
+plot.ts(total_muertes_agrupadas_año.ts[, "trastornos_mentales"], ylab = "",
+        xlab = "Año", main = "Trastornos mentales")
+plot.ts(total_muertes_agrupadas_año.ts[, "enf_cardiovasculares"], ylab = "",
+        xlab = "Año", main = "Enfermedades cardiovasculares")
+plot.ts(total_muertes_agrupadas_año.ts[, "infecciones_respi"], ylab = "",
+        xlab = "Año", main = "Infecciones respiratorias")
+```
+
+En estos últimos tres gráficos se observa un comportamiento sinusoidal, con tendencias alcistas y bajistas en diferentes ventanas temporales. Las primeras dos causas tienen su mínimo en 1990, mientras que la tercera lo tiene en 2011. Por otro lado, el máximo de la primera lo alcanza en 2005, la segunda en 2003 y la tercera en 1995.
+
+Por último, comparemos la evolución de todas las causas en tres gráficos diferentes: número de muertes bajo, número de muertes medio y número de muertes alto.
+
+```{r grafico resumen, fig.width=10, fig.height=7}
+par(mfrow = c(2, 2), las = 1)
+
+colores = c("blue", "red", "green", "purple", "orange", "black", "pink", "yellow", "cyan",
+            "darkgreen", "magenta")
+nombres_causas = c("Enfermedades infecciosas y parasitarias", "Enfermedades metabólicas",
+                   "Trastornos del embarazo", "Trastornos mentales",
+                   "Enfermedades del sistema nervioso", "Causas externas",
+                   "Infecciones respiratorias", "Enfermedades del sistema digestivo",
+                   "Enfermedades crónicas", "Enfermedades cardiovasculares", "neoplasias")
+
+ts.plot(total_muertes_agrupadas_año.ts[, c("enf_infec_paras", "enf_metabolicas",
+                                           "trastornos_embarazo", "trastornos_mentales")],
+        main = "Número de muertes bajo", col = colores[1:4], lwd = 2)
+
+ts.plot(total_muertes_agrupadas_año.ts[, c("enf_sist_nervioso", "causas_externas",
+                                           "infecciones_respi", "enf_sist_digestivo",
+                                           "enf_cronicas")],
+        main = "Número de muertes medio", col = colores[5:9], lwd = 2)
+
+ts.plot(total_muertes_agrupadas_año.ts[, c("enf_cardiovasculares", "neoplasias")],
+        main = "Número de muertes alto", col = colores[10:11], lwd = 2)
+
+
+plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")  # Gráfico vacío para la leyenda
+legend("center", legend = nombres_causas, col = colores, lwd = 2, bty = "n")
+
+# Notación científica predeterminada
+options(scipen = 0)
+```
+
+
+
+## 6 - Análisis en componentes principales
+
+En este apartado realizaremos análisis en componentes principales (ACP). Veremos tres análisis: con las medianas temporales para cada país, en 1990 y en 2019; con el objetivo de ver si se producen cambios significativos a lo largo del tiempo en las agrupaciones de países.
+
+
+### ACP medianas temporales
+
+En este primer análisis se hará sobre un conjunto de datos donde para cada país tendremos la mediana de cada causa de muerte y del IDH con respecto al tiempo. Construyamos primero este conjunto de datos.
+
+```{r mediana temporal muertes}
+new_data_medianas <- new_data %>%
+  group_by(codigo_Pais) %>%
+  summarise(across(c(enf_infec_paras:enf_cronicas, idh), median)) %>%
+  ungroup()
+```
+
+Veamos si hay alguna entrada que sea $0$.
+
+```{r conteo ceros medianas}
+new_data_medianas %>%
+  dplyr::select(enf_infec_paras:enf_cronicas) %>%
+  summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0)))) %>% 
+  glimpse
+```
+
+Como hay dos $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ `r #Si no se imputan 0, clr deja ese espacio como 0` y luego aplicaremos la transformación *clr* y centraremos los datos.
 
 ```{r mediana temporal muertes clr}
-data_eu_g_m_clr <- data_eu_agrupado_medianas
+new_data_medianas_clr <- new_data_medianas %>%
+  mutate(across(enf_infec_paras:enf_cronicas, ~ replace(., . == 0, 0.65)))
 
-data_eu_g_m_clr[, 2:12] <- data_eu_agrupado_medianas[, 2:12] %>% clr %>% as_tibble
+new_data_medianas_clr[, 2:12] <- new_data_medianas_clr %>%
+  dplyr::select(enf_infec_paras:enf_cronicas) %>%
+  clr %>%
+  as_tibble
 
-n = nrow(data_eu_g_m_clr)
+n = nrow(new_data_medianas_clr)
 
 # Matriz de centrado
 Hn = diag(n) - 1/n
 
 # Datos centrados
-data_cen_medianas <- Hn %*% as.matrix(data_eu_g_m_clr[, 2:12]) %>%
-  as_tibble() %>%
-  mutate(codigo_Pais = data_eu_g_m_clr$codigo_Pais, .before = enf_infec_paras)
+data_cen_medianas <- Hn %*% as.matrix(new_data_medianas_clr[, 2:12]) %>% 
+  as_tibble %>%
+  mutate(codigo_Pais = new_data_medianas_clr$codigo_Pais, .before = enf_infec_paras,) %>%
+  mutate(idh = new_data_medianas_clr$idh)
 ```
 
 Antes de realizar el método de componentes principales, observemos la matriz de varianzas-covarianzas y la matriz de correlación.
 
-```{r matriz covarianzas}
-S = cov(data_cen_medianas[, 2:12])
+```{r matriz covarianzas medianas}
+S_medianas = cov(data_cen_medianas[, 2:12])
 cat("Matriz de varianzas-covarianzas\n")
-S
+S_medianas
 ```
 
+Podemos ver que los valores de las varianzas se agrupan entre $0.07881073$ y $0.72369244$, siendo el valor mínimo de *enf_sist_digestivo* y el máximo de *trastornos_mentales*. Debido a esta diferencia entre las varianzas, realizaremos el ACP escalado, ya que si no, las componentes principales le darían más peso a las variables con una alta varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
 
-Podemos ver que los valores de las varianzas se agrupan entre $0.088622682$ y $0.757467691$, siendo el valor mínimo de *enf_sist_digestivo* y el máximo de *trastornos_mentales*. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
-
-```{r varianzas ordenadas}
-sort(diag(S))
+```{r varianzas ordenadas medianas}
+sort(diag(S_medianas))
 ```
 
 Por otro lado, la matriz de correlaciones es:
 
 ```{r matriz correlacion medianas, fig.height=6}
 data_cen_medianas %>%
-  dplyr::select(where(is.numeric)) %>%
+  dplyr::select(enf_infec_paras:enf_cronicas) %>%
   cor(., method = "spearman") %>% 
-  corPlot(., cex = 0.8, xsrt = 30, cex.axis = 1, main = "Matriz de correlaciones")
+  ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
+             title = "Matriz de correlaciones")
 ```
 
-La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.74$. Por otro lado, la mayor correlación negativa se encuentra entre *enf_infec_para* y *neoplasias* y entre *enf_metabolicas* y *trastornos_mentales*, ambas con un valor de $-0.66$.
+La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.76$. Por otro lado, la mayor correlación negativa se encuentra entre *causas_externas* y *enf_cronicas*, con un valor de $-0.66$.
 
-Pasemos al estudio de las componentes principales. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
+Pasemos al estudio de las componentes principales. Calculemos los valores y vectores propios de la matriz de varianzas-covarianzas.
 
 ```{r ACP medianas}
-data_ACP_medianas = prcomp(data_cen_medianas[, 2:12], scale = FALSE)
-data_ACP_medianas_scaled = prcomp(data_cen_medianas[, 2:12], scale = TRUE)
+data_ACP_medianas = prcomp(data_cen_medianas[, 2:12], scale = TRUE)
 
-rownames(data_ACP_medianas$x) <- data_eu_agrupado_medianas$codigo_Pais
-rownames(data_ACP_medianas_scaled$x) <- data_eu_agrupado_medianas$codigo_Pais
+rownames(data_ACP_medianas$x) <- data_cen_medianas$codigo_Pais
 ```
 
 ```{r veps medianas}
 veps_medianas = data_ACP_medianas$rotation
-veps_medianas_scaled = data_ACP_medianas_scaled$rotation
 
-cat("Vectores propios (datos sin escalar)\n")
+cat("Vectores propios\n")
 veps_medianas
-cat("Vectores propios (datos escalados)\n")
-veps_medianas_scaled
 ```
 
-En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable *trastornos_mentales* y *enf_metabolicas* y apenas le da peso a *enf_cardiovasculares*, *enf_sist_digestivo* y *neoplasias*. Considerando la segunda componente, vemos que seguimos sin darle peso a *enf_cardiovasculares* y *enf_sist_digestivo*. Esto se debe a que son las variables con menos varianza.
-
-Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables.
+Podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables, aunque *enf_sist_digestivo* y *enf_cardiovasculares* son las que menos peso tienen.
 
 ```{r vaps medianas}
 vaps_medianas = get_eigenvalue(data_ACP_medianas)
-vaps_medianas_scaled = get_eigenvalue(data_ACP_medianas_scaled)
 
-cat("Valores propios (datos sin escalar)\n")
+cat("Valores propios\n")
 vaps_medianas
-
-cat("Valores propios (datos escalados)\n")
-vaps_medianas_scaled
 ```
 
-A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $68\%$ de la variación total con los datos sin escalar; y el $58\%$ con los datos escalados. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
+A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $61\%$ de la variación total. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
-```{r porcentajes variacion medianas, fig.width=9}
-perc_var_medianas <- fviz_eig(data_ACP_medianas, addlabels = TRUE, ylim = c(0,100),
-                              main = "Datos sin escalar")
-perc_var_medianas_scaled <- fviz_eig(data_ACP_medianas_scaled, addlabels = TRUE, ylim = c(0,100),
-                                     main = "Datos escalados")
-
-grid.arrange(perc_var_medianas, perc_var_medianas_scaled, ncol = 2)
+```{r porcentajes variacion medianas}
+fviz_eig(data_ACP_medianas, addlabels = TRUE, ylim = c(0,100))
 ```
 
-En ambos casos, a partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
+A partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
 
-```{r circulo correlacion dim1-dim2 medianas, fig.width=10}
-circ_cor_medianas <- fviz_pca_var(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2, title="Sin escalar")
-circ_cor_medianas_scaled <- fviz_pca_var(data_ACP_medianas_scaled, col.var = "contrib", repel = TRUE, axes = 1:2, title = "Escalado")
-grid.arrange(circ_cor_medianas, circ_cor_medianas_scaled, ncol = 2)
+```{r circulo correlacion dim1-dim2 medianas}
+fviz_pca_var(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
 
-En el primer gráfico vemos que las variables mejor representadas son *trastornos_embarazo* y *trastornos_mentales* ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, *enf_cardiovasculares* y *enf_sist_digestivo* son las peores representadas y las que menos contribuyen, debido a que tienen la menor varianza.
-
-En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando de nuevo *enf_cardiovasculares* y *enf_sist_digestivo*, aunque en este caso la diferencia no es tan grande.
+La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_cardiovasculares* y *enf_sist_digestivo* debido al poco peso que tienen.
 
 Podemos ver las contribuciones de cada variable al plano principal
 
 ```{r contribuciones plano principal medianas}
-contrib_var_medianas <- fviz_contrib(data_ACP_medianas, choice = "var", axes = 1:2,
-                                     title = "Datos sin escalar")
-contrib_var_medianas_scaled <- fviz_contrib(data_ACP_medianas_scaled, choice = "var", axes = 1:2,
-                                            title = "Datos escalados")
-
-grid.arrange(contrib_var_medianas, contrib_var_medianas_scaled, ncol = 2)
+fviz_contrib(data_ACP_medianas, choice = "var", axes = 1:2,)
 ```
 
 Veamos también la calidad de representación de las variables:
 
-```{r grafico barras cos2}
-cos2_var_medianas <- fviz_cos2(data_ACP_medianas, choice = "var", axes = 1:2,
-                                     title = "Datos sin escalar")
-cos2_var_medianas_scaled <- fviz_cos2(data_ACP_medianas_scaled, choice = "var", axes = 1:2,
-                                            title = "Datos escalados")
-
-grid.arrange(cos2_var_medianas, cos2_var_medianas_scaled, ncol = 2)
+```{r grafico barras cos2 medianas}
+fviz_cos2(data_ACP_medianas, choice = "var", axes = 1:2)
 ```
 
-Por último veamos una representación de los países en el plano principal con un biplot.
+En estos dos gráficos podemos ver de forma clara la mala representación de estas variables.
 
-```{r biplots dim1-dim2, fig.width=20, fig.height=10}
-biplot_medianas <- fviz_pca_biplot(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2,
-                                   title = "Sin escalar (medianas)")
-biplot_medianas_scaled <- fviz_pca_biplot(data_ACP_medianas_scaled, col.var = "contrib",
-                                          repel = TRUE, axes = 1:2, title = "Escalado (medianas)")
+Por último veamos una representación de los países en el plano principal con un biplot. Los colorearemos en función del IDH para ver si se agrupan en función de este. Podemos hacer cuatro grupos, separados por los cuartiles. Esto lo haremos también en los ACP de 1990 y 2019.
 
-grid.arrange(biplot_medianas, biplot_medianas_scaled, ncol = 2)
+```{r grupos IDH medianas}
+cuartiles_medianas <- new_data_medianas %>% 
+  select(idh) %>% 
+  pull %>% 
+  quantile(., probs = c(0.25, 0.5, 0.75))
+
+# Clasificar los países en función de los cuartiles del IDH
+new_data_medianas_clr <- new_data_medianas_clr %>%
+  mutate(grupo_idh = case_when(idh <= cuartiles_medianas[1] ~ "Bajo", 
+                               idh <= cuartiles_medianas[2] ~ "Medio Bajo", 
+                               idh <= cuartiles_medianas[3] ~ "Medio Alto", 
+                               TRUE ~ "Alto")) %>% 
+  mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
-Podemos ver que la agrupación de países no difiere mucho de un gráfico a otro.
+
+```{r biplots dim1-dim2 medianas, fig.width=10, fig.height=10}
+biplot_medianas <- fviz_pca_biplot(data_ACP_medianas, 
+                col.var = "darkgrey",
+                col.ind = new_data_medianas_clr$grupo_idh,
+                palette = c("darkred", "lightcoral", "#4A90E2", "darkblue"),
+                #col.ind = new_data_medianas_clr$idh,
+                #gradient.cols = c("red", "cyan"),
+                pointshape = 16,
+                pointsize = 2,
+                mean.point = FALSE,
+                legend.title = "Grupo IDH",
+                repel = TRUE,
+                title = "Biplot medianas temporales"
+                )
+
+biplot_medianas
+```
+
+Podemos ver que los países con mayor IDH se agrupan en el tercer cuadrante, caracterizado por las enfermedades del sistema nervioso y las neoplasias, propias de países más desarrollados. Por otro lado, los países con menor IDH se agrupan en el primer cuadrante, caracterizado por las enfermedades infecciosas y parasitarias y los trastornos del embarazo, propias de países menos desarrollados. A su vez, podemos ver una transición del IDH entre el primer y el tercer cuadrante.
+
 
 ### ACP 1990
 
 Veamos ahora un análisis en componentes principales donde tomaremos los datos de 1990. Construyamos primero este conjunto de datos.
 
 ```{r 1990}
-data_eu_agrupado_1990 <- data_eu_agrupado %>%
+new_data_1990 <- new_data %>%
   filter(año == 1990) %>%
-  dplyr::select(codigo_Pais, enf_infec_paras:enf_cronicas)
+  dplyr::select(codigo_Pais, enf_infec_paras:enf_cronicas, idh)
 ```
 
 Veamos si hay alguna entrada que sea $0$.
 
 ```{r conteo ceros 1990}
-data_eu_agrupado_1990 %>%
+new_data_1990 %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0)))) %>% 
   glimpse
 ```
 
-Como hay un $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ `r #Si no se imputan 0, clr deja ese espacio como 0` y luego aplicaremos la transformación *clr* y centraremos los datos. 
+Como hay un $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ y luego aplicaremos la transformación *clr* y centraremos los datos.
 
 ```{r 1990 clr}
-data_eu_g_1990_clr <- data_eu_agrupado_1990 %>%
-  mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
+new_data_1990_clr <- new_data_1990 %>%
+  mutate(across(enf_infec_paras:enf_cronicas, ~ replace(., . == 0, 0.65)))
 
-data_eu_g_1990_clr[, 2:12] <- data_eu_agrupado_1990 %>%
+new_data_1990_clr[, 2:12] <- new_data_1990_clr %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   clr %>%
   as_tibble
 
-n = nrow(data_eu_g_1990_clr)
+n = nrow(new_data_1990_clr)
 
 # Matriz de centrado
 Hn = diag(n) - 1/n
 
 # Datos centrados
-data_cen_1990 <- Hn %*% as.matrix(data_eu_g_1990_clr[, 2:12]) %>% 
+data_cen_1990 <- Hn %*% as.matrix(new_data_1990_clr[, 2:12]) %>% 
   as_tibble %>%
-  mutate(codigo_Pais = data_eu_g_1990_clr$codigo_Pais, .before = enf_infec_paras)
+  mutate(codigo_Pais = new_data_1990_clr$codigo_Pais, .before = enf_infec_paras,) %>%
+  mutate(idh = new_data_1990_clr$idh)
 ```
 
 Antes de realizar el método de componentes principales, observemos la matriz de varianzas-covarianzas y la matriz de correlación.
 
 ```{r matriz covarianzas 1990}
-S = cov(data_cen_1990[, 2:12])
+S_1990 = cov(data_cen_1990[, 2:12])
 cat("Matriz de varianzas-covarianzas\n")
-S
+S_1990
 ```
 
-
-Podemos ver que los valores de las varianzas se agrupan entre $0.07590157$ y $0.78610287$, siendo el valor mínimo de *enf_cardiovasculares* y el máximo de *trastornos_mentales*. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
+Podemos ver que los valores de las varianzas se agrupan entre $0.07792913$ y $0.71067096$, siendo el valor mínimo de *enf_cardiovasculares* y el máximo de *trastornos_mentales*. Debido a esta diferencia entre las varianzas, realizaremos el ACP escalado, ya que si no, las componentes principales le darían más peso a las variables con una alta varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
 
 ```{r varianzas ordenadas 1990}
-sort(diag(S))
+sort(diag(S_1990))
 ```
 
 Por otro lado, la matriz de correlaciones es:
 
 ```{r matriz correlacion 1990, fig.height=6}
 data_cen_1990 %>%
-  dplyr::select(where(is.numeric)) %>%
+  dplyr::select(enf_infec_paras:enf_cronicas) %>%
   cor(., method = "spearman") %>% 
-  corPlot(., cex = 0.8, xsrt = 30, cex.axis = 1, main = "Matriz de correlaciones")
+  ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
+             title = "Matriz de correlaciones")
 ```
 
-La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.85$. Por otro lado, la mayor correlación negativa se encuentra entre *enf_sist_nervioso* y *trastornos_embarazo*, con un valor de $-0.75$.
+La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.86$. Por otro lado, la mayor correlación negativa se encuentra entre *enf_sist_nervioso* y *trastornos_embarazo*, con un valor de $-0.75$.
 
-Pasemos al estudio de las componentes principales. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
+Pasemos al estudio de las componentes principales. Calculemos los valores y vectores propios de la matriz de varianzas-covarianzas.
 
 ```{r ACP 1990}
-data_ACP_1990 = prcomp(data_cen_1990[, 2:12], scale = FALSE)
-data_ACP_1990_scaled = prcomp(data_cen_1990[, 2:12], scale = TRUE)
+data_ACP_1990 = prcomp(data_cen_1990[, 2:12], scale = TRUE)
 
-rownames(data_ACP_1990$x) <- data_eu_agrupado_1990$codigo_Pais
-rownames(data_ACP_1990_scaled$x) <- data_eu_agrupado_1990$codigo_Pais
+rownames(data_ACP_1990$x) <- data_cen_1990$codigo_Pais
 ```
 
 ```{r veps 1990}
 veps_1990 = data_ACP_1990$rotation
-veps_1990_scaled = data_ACP_1990_scaled$rotation
 
-cat("Vectores propios (datos sin escalar)\n")
+cat("Vectores propios\n")
 veps_1990
-cat("Vectores propios (datos escalados)\n")
-veps_1990_scaled
 ```
 
-En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable *trastornos_mentales* y *trastornos_embarazo* y apenas le da peso a *enf_sist_digestivo*, *enf_infec_paras*, *enf_cronicas* y *enf_cardiovasculares*. Considerando la segunda componente, vemos que seguimos sin darle peso a *enf_cardiovasculares* y *enf_sist_digestivo*.
-
-Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables, quizás exceptuando *enf_sist_digestivo*.
+Podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables, menos a *enf_sist_digestivo*, la cual le da peso la tercera componente.
 
 ```{r vaps 1990}
 vaps_1990 = get_eigenvalue(data_ACP_1990)
-vaps_1990_scaled = get_eigenvalue(data_ACP_1990_scaled)
 
-cat("Valores propios (datos sin escalar)\n")
+cat("Valores propios\n")
 vaps_1990
-
-cat("Valores propios (datos escalados)\n")
-vaps_1990_scaled
 ```
 
-A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $70\%$ de la variación total con los datos sin escalar; y el $58\%$ con los datos escalados. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
+A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $58\%$ de la variación total. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
-```{r porcentajes variacion 1990, fig.width=9}
-perc_var_1990 <- fviz_eig(data_ACP_1990, addlabels = TRUE, ylim = c(0,100),
-                              main = "Datos sin escalar")
-perc_var_1990_scaled <- fviz_eig(data_ACP_1990_scaled, addlabels = TRUE, ylim = c(0,100),
-                                     main = "Datos escalados")
-
-grid.arrange(perc_var_1990, perc_var_1990_scaled, ncol = 2)
+```{r porcentajes variacion 1990}
+fviz_eig(data_ACP_1990, addlabels = TRUE, ylim = c(0,100))
 ```
 
-En ambos casos, a partir de la tabla y el gráfico podemos elegir dos componentes principales, ya que a partir de la tercera componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
+A partir de la tabla y el gráfico podemos elegir dos componentes principales, ya que a partir de la tercera componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
 
-```{r circulo correlacion dim1-dim2 1990, fig.width=10}
-circ_cor_1990 <- fviz_pca_var(data_ACP_1990, col.var = "contrib", repel = TRUE, axes = 1:2, title="Sin escalar")
-circ_cor_1990_scaled <- fviz_pca_var(data_ACP_1990_scaled, col.var = "contrib", repel = TRUE, axes = 1:2, title = "Escalado")
-grid.arrange(circ_cor_1990, circ_cor_1990_scaled, ncol = 2)
+```{r circulo correlacion dim1-dim2 1990}
+fviz_pca_var(data_ACP_1990, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
 
-En el primer gráfico vemos que las variables mejor representadas son *trastornos_embarazo* y *trastornos_mentales* ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, *enf_cardiovasculares* y *enf_sist_digestivo* son las peores representadas y las que menos contribuyen.
-
-En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando de nuevo *enf_sist_digestivo*.
+La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_sist_digestivo* debido al poco peso que tiene.
 
 Podemos ver las contribuciones de cada variable al plano principal
 
 ```{r contribuciones plano principal 1990}
-contrib_var_1990 <- fviz_contrib(data_ACP_1990, choice = "var", axes = 1:2,
-                                     title = "Datos sin escalar")
-contrib_var_1990_scaled <- fviz_contrib(data_ACP_1990_scaled, choice = "var", axes = 1:2,
-                                            title = "Datos escalados")
-
-grid.arrange(contrib_var_1990, contrib_var_1990_scaled, ncol = 2)
+fviz_contrib(data_ACP_1990, choice = "var", axes = 1:2,)
 ```
 
 Veamos también la calidad de representación de las variables:
 
 ```{r grafico barras cos2 1990}
-cos2_var_1990 <- fviz_cos2(data_ACP_1990, choice = "var", axes = 1:2,
-                                     title = "Datos sin escalar")
-cos2_var_1990_scaled <- fviz_cos2(data_ACP_1990_scaled, choice = "var", axes = 1:2,
-                                            title = "Datos escalados")
-
-grid.arrange(cos2_var_1990, cos2_var_1990_scaled, ncol = 2)
+fviz_cos2(data_ACP_1990, choice = "var", axes = 1:2)
 ```
+
+En estos dos gráficos podemos ver de forma clara la mala representación de *enf_sist_digestivo*.
 
 Por último veamos una representación de los países en el plano principal con un biplot.
 
-```{r biplots 1990 dim1-dim2, fig.width=20, fig.height=10}
-biplot_1990 <- fviz_pca_biplot(data_ACP_1990, col.var = "contrib", repel = TRUE, axes = 1:2,
-                                   title = "Sin escalar (1990)")
-biplot_1990_scaled <- fviz_pca_biplot(data_ACP_1990_scaled, col.var = "contrib",
-                                          repel = TRUE, axes = 1:2, title = "Escalado (1990)")
+```{r grupos IDH 1990}
+cuartiles_1990 <- new_data_1990 %>% 
+  select(idh) %>% 
+  pull %>% 
+  quantile(., probs = c(0.25, 0.5, 0.75))
 
-grid.arrange(biplot_1990, biplot_1990_scaled, ncol = 2)
+# Clasificar los países en función de los cuartiles del IDH
+new_data_1990_clr <- new_data_1990_clr %>%
+  mutate(grupo_idh = case_when(idh <= cuartiles_1990[1] ~ "Bajo", 
+                               idh <= cuartiles_1990[2] ~ "Medio Bajo", 
+                               idh <= cuartiles_1990[3] ~ "Medio Alto", 
+                               TRUE ~ "Alto")) %>% 
+  mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
+
+```{r biplots dim1-dim2 1990, fig.width=10, fig.height=10}
+biplot_1990 <- fviz_pca_biplot(data_ACP_1990, 
+                col.var = "darkgrey",
+                col.ind = new_data_medianas_clr$grupo_idh,
+                palette = c("darkred", "lightcoral", "#4A90E2", "darkblue"),
+                #col.ind = new_data_medianas_clr$idh,
+                #gradient.cols = c("red", "cyan"),
+                pointshape = 16,
+                pointsize = 2,
+                mean.point = FALSE,
+                legend.title = "Grupo IDH",
+                repel = TRUE,
+                title = "Biplot 1990"
+                )
+
+biplot_1990
+```
+
+En este gráfico no podemos ver una agrupación clara.
+
+
 
 ### ACP 2019
 
-Veamos ahora un análisis en componentes principales donde tomaremos los datos de 2019 Construyamos primero este conjunto de datos.
+Veamos ahora un análisis en componentes principales donde tomaremos los datos de 2019. Construyamos primero este conjunto de datos.
 
 ```{r 2019}
-data_eu_agrupado_2019 <- data_eu_agrupado %>%
+new_data_2019 <- new_data %>%
   filter(año == 2019) %>%
-  dplyr::select(codigo_Pais, enf_infec_paras:enf_cronicas)
+  dplyr::select(codigo_Pais, enf_infec_paras:enf_cronicas, idh)
 ```
 
 Veamos si hay alguna entrada que sea $0$.
 
 ```{r conteo ceros 2019}
-data_eu_agrupado_2019 %>%
+new_data_2019 %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0)))) %>% 
   glimpse
 ```
 
-Como hay tres $0$, para poder realizar la transformación *clr* los tendremos que imputar. Los vamos a sustituir por $0.65$ y luego aplicaremos la transformación *clr* y centraremos los datos. 
+Como hay un $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ y luego aplicaremos la transformación *clr* y centraremos los datos.
 
 ```{r 2019 clr}
-data_eu_g_2019_clr <- data_eu_agrupado_2019 %>%
-  mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
+new_data_2019_clr <- new_data_2019 %>%
+  mutate(across(enf_infec_paras:enf_cronicas, ~ replace(., . == 0, 0.65)))
 
-data_eu_g_2019_clr[, 2:12] <- data_eu_agrupado_2019 %>%
+new_data_2019_clr[, 2:12] <- new_data_2019_clr %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   clr %>%
   as_tibble
 
-n = nrow(data_eu_g_1990_clr)
+n = nrow(new_data_2019_clr)
 
 # Matriz de centrado
 Hn = diag(n) - 1/n
 
 # Datos centrados
-data_cen_2019 <- Hn %*% as.matrix(data_eu_g_2019_clr[, 2:12]) %>% 
+data_cen_2019 <- Hn %*% as.matrix(new_data_2019_clr[, 2:12]) %>% 
   as_tibble %>%
-  mutate(codigo_Pais = data_eu_g_2019_clr$codigo_Pais, .before = enf_infec_paras)
+  mutate(codigo_Pais = new_data_2019_clr$codigo_Pais, .before = enf_infec_paras,) %>%
+  mutate(idh = new_data_2019_clr$idh)
 ```
 
 Antes de realizar el método de componentes principales, observemos la matriz de varianzas-covarianzas y la matriz de correlación.
 
 ```{r matriz covarianzas 2019}
-S = cov(data_cen_2019[, 2:12])
+S_2019 = cov(data_cen_2019[, 2:12])
 cat("Matriz de varianzas-covarianzas\n")
-S
+S_2019
 ```
 
-
-Podemos ver que los valores de las varianzas se agrupan entre $0.08048686$ y $0.80571031$, siendo el valor mínimo de *enf_sist_digestivo* y el máximo de *trastornos_embarazo*. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
+Podemos ver que los valores de las varianzas se agrupan entre $0.06812191$ y $0.73138636$, siendo el valor mínimo de *enf_sist_digestivo* y el máximo de *trastornos_mentales*. Debido a esta diferencia entre las varianzas, realizaremos el ACP escalado, ya que si no, las componentes principales le darían más peso a las variables con una alta varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
 
 ```{r varianzas ordenadas 2019}
-sort(diag(S))
+sort(diag(S_2019))
 ```
 
 Por otro lado, la matriz de correlaciones es:
 
 ```{r matriz correlacion 2019, fig.height=6}
 data_cen_2019 %>%
-  dplyr::select(where(is.numeric)) %>%
+  dplyr::select(enf_infec_paras:enf_cronicas) %>%
   cor(., method = "spearman") %>% 
-  corPlot(., cex = 0.8, xsrt = 30, cex.axis = 1, main = "Matriz de correlaciones")
+  ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
+             title = "Matriz de correlaciones")
 ```
 
-La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.63$. Por otro lado, la mayor correlación negativa se encuentra entre *enf_infec_paras* y *neoplasias*, con un valor de $-0.69$.
+La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.67$. Por otro lado, la mayor correlación negativa se encuentra entre *causas_externas* y *enf_cronicas*, con un valor de $-0.69$.
 
-Pasemos al estudio de las componentes principales. Haremos dos ACP: uno con los datos escalados y otro sin escalar. Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
+Pasemos al estudio de las componentes principales. Calculemos los valores y vectores propios de la matriz de varianzas-covarianzas.
 
 ```{r ACP 2019}
-data_ACP_2019 = prcomp(data_cen_2019[, 2:12], scale = FALSE)
-data_ACP_2019_scaled = prcomp(data_cen_2019[, 2:12], scale = TRUE)
+data_ACP_2019 = prcomp(data_cen_2019[, 2:12], scale = TRUE)
 
-rownames(data_ACP_2019$x) <- data_eu_agrupado_2019$codigo_Pais
-rownames(data_ACP_2019_scaled$x) <- data_eu_agrupado_2019$codigo_Pais
+rownames(data_ACP_2019$x) <- data_cen_2019$codigo_Pais
 ```
 
 ```{r veps 2019}
 veps_2019 = data_ACP_2019$rotation
-veps_2019_scaled = data_ACP_2019_scaled$rotation
 
-cat("Vectores propios (datos sin escalar)\n")
+cat("Vectores propios\n")
 veps_2019
-cat("Vectores propios (datos escalados)\n")
-veps_2019_scaled
 ```
 
-En el caso de los datos sin escalar, la primera componente principal le da peso mayoritariamente a la variable *trastornos_mentales* y apenas le da peso a *enf_sist_digestivo*, *enf_cardiovasculares* y *enf_sist_nervioso*. Considerando la segunda componente, vemos que seguimos sin darle peso a *enf_cardiovasculares* y *enf_sist_digestivo*.
-
-Por otro lado, en el caso de datos escalados, podemos ver que entre la primera y segunda componente le dan un peso considerable a todas las variables.
+Podemos ver que entre la primera y segunda componente le dan un peso considerable a la mayoría de las variables, exceptuando quizás a *enf_infec_paras*, *enf_cardiovasculares*, *infecciones_respi* y *enf_sist_digestivo*, aunque la tercera y cuarta componentes ya les dan más peso.
 
 ```{r vaps 2019}
 vaps_2019 = get_eigenvalue(data_ACP_2019)
-vaps_2019_scaled = get_eigenvalue(data_ACP_2019_scaled)
 
-cat("Valores propios (datos sin escalar)\n")
+cat("Valores propios\n")
 vaps_2019
-
-cat("Valores propios (datos escalados)\n")
-vaps_2019_scaled
 ```
 
-A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $65\%$ de la variación total con los datos sin escalar; y el $58\%$ con los datos escalados. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
+A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $60\%$ de la variación total. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
-```{r porcentajes variacion 2019, fig.width=9}
-perc_var_2019 <- fviz_eig(data_ACP_2019, addlabels = TRUE, ylim = c(0,100),
-                              main = "Datos sin escalar")
-perc_var_2019_scaled <- fviz_eig(data_ACP_2019_scaled, addlabels = TRUE, ylim = c(0,100),
-                                     main = "Datos escalados")
-
-grid.arrange(perc_var_2019, perc_var_2019_scaled, ncol = 2)
+```{r porcentajes variacion 2019}
+fviz_eig(data_ACP_2019, addlabels = TRUE, ylim = c(0,100))
 ```
 
-En ambos casos, a partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
+A partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
 
-```{r circulo correlacion dim1-dim2 2019, fig.width=10}
-circ_cor_2019 <- fviz_pca_var(data_ACP_2019, col.var = "contrib", repel = TRUE,
-                              axes = 1:2, title="Sin escalar")
-circ_cor_2019_scaled <- fviz_pca_var(data_ACP_2019_scaled, col.var = "contrib", repel = TRUE,
-                                     axes = 1:2, title = "Escalado")
-grid.arrange(circ_cor_2019, circ_cor_2019_scaled, ncol = 2)
+```{r circulo correlacion dim1-dim2 2019}
+fviz_pca_var(data_ACP_2019, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
 
-En el primer gráfico vemos que las variables mejor representadas son *trastornos_embarazo* y *trastornos_mentales* ya que tienen la flecha más larga. También se puede apreciar que son las que más contribuyen al plano principal. Esto es debido a que son las variables con mayor varianza. Por otro lado, *enf_cardiovasculares* y *enf_sist_digestivo* son las peores representadas y las que menos contribuyen.
-
-En el segundo gráfico, la mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando algunas causas, aunque en este caso la diferencia no es tan grande.
+La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_sist_digestivo* y *enf_cardiovasculares* debido al poco peso que tienen.
 
 Podemos ver las contribuciones de cada variable al plano principal
 
 ```{r contribuciones plano principal 2019}
-contrib_var_2019 <- fviz_contrib(data_ACP_2019, choice = "var", axes = 1:2,
-                                     title = "Datos sin escalar")
-contrib_var_2019_scaled <- fviz_contrib(data_ACP_2019_scaled, choice = "var", axes = 1:2,
-                                            title = "Datos escalados")
-
-grid.arrange(contrib_var_2019, contrib_var_2019_scaled, ncol = 2)
+fviz_contrib(data_ACP_2019, choice = "var", axes = 1:2,)
 ```
 
 Veamos también la calidad de representación de las variables:
 
 ```{r grafico barras cos2 2019}
-cos2_var_2019 <- fviz_cos2(data_ACP_2019, choice = "var", axes = 1:2,
-                                     title = "Datos sin escalar")
-cos2_var_2019_scaled <- fviz_cos2(data_ACP_2019_scaled, choice = "var", axes = 1:2,
-                                            title = "Datos escalados")
-
-grid.arrange(cos2_var_2019, cos2_var_2019_scaled, ncol = 2)
+fviz_cos2(data_ACP_2019, choice = "var", axes = 1:2)
 ```
+
+En estos dos gráficos podemos ver de forma clara la mala representación de *enf_sist_digestivo* y *enf_cardiovasculares*, seguidas de *infecciones_respi* y *enf_infec_paras*.
 
 Por último veamos una representación de los países en el plano principal con un biplot.
 
-```{r biplots 2019 dim1-dim2, fig.width=20, fig.height=10}
-biplot_2019 <- fviz_pca_biplot(data_ACP_2019, col.var = "contrib", repel = TRUE, axes = 1:2,
-                                   title = "Sin escalar (2019)")
-biplot_2019_scaled <- fviz_pca_biplot(data_ACP_2019_scaled, col.var = "contrib",
-                                          repel = TRUE, axes = 1:2, title = "Escalado (2019)")
+```{r grupos IDH 2019}
+cuartiles_2019 <- new_data_2019 %>% 
+  select(idh) %>% 
+  pull %>% 
+  quantile(., probs = c(0.25, 0.5, 0.75))
 
-grid.arrange(biplot_2019, biplot_2019_scaled, ncol = 2)
+# Clasificar los países en función de los cuartiles del IDH
+new_data_2019_clr <- new_data_2019_clr %>%
+  mutate(grupo_idh = case_when(idh <= cuartiles_2019[1] ~ "Bajo", 
+                               idh <= cuartiles_2019[2] ~ "Medio Bajo", 
+                               idh <= cuartiles_2019[3] ~ "Medio Alto", 
+                               TRUE ~ "Alto")) %>% 
+  mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
-Como resumen de estos seis ACP, podemos ver las representaciones en el siguiente gráfico.
+```{r biplots dim1-dim2 2019, fig.width=10, fig.height=10}
+biplot_2019 <- fviz_pca_biplot(data_ACP_2019, 
+                col.var = "darkgrey",
+                col.ind = new_data_medianas_clr$grupo_idh,
+                palette = c("darkred", "lightcoral", "#4A90E2", "darkblue"),
+                #col.ind = new_data_medianas_clr$idh,
+                #gradient.cols = c("red", "cyan"),
+                pointshape = 16,
+                pointsize = 2,
+                mean.point = FALSE,
+                legend.title = "Grupo IDH",
+                repel = TRUE,
+                title = "Biplot 2019"
+                )
 
-```{r resumen ACPs, fig.width=20, fig.height=30}
-grid.arrange(biplot_medianas, biplot_medianas_scaled,
-             biplot_1990, biplot_1990_scaled,
-             biplot_2019, biplot_2019_scaled,
-             nrow = 3, ncol = 2)
+biplot_2019
+```
+
+En este gráfico tampoco podemos ver una agrupación clara.
+
+
+Para acabar veamos juntos los tres gráficos que hemos analizado:
+
+```{r resumen biplots dim1-dim2, fig.width=20, fig.height=20}
+grid.arrange(biplot_1990, biplot_2019, biplot_medianas, ncol = 2)
 ```
 
 
-```{r ACP_anterior}
-#Ahora, realicemos un análisis en componentes principales (ACP). Nos restringiremos a los datos que #proporcionan los países europeos y a algunas causas de muerte. El criterio de elección es coger las #principales causas de defunción según la ONU en [este #artículo](https://www.who.int/es/news-room/fact-sheets/detail/the-top-10-causes-of-death). La ONU #separa estas causas según la clasificación del Banco mundial del ingreso de los países que se puede #ver [aquí](https://blogs.worldbank.org/es/opendata/clasificacion-de-paises-del-banco-mundial-por-niv#el-de-ingreso-2024-25). Europa está compuesto mayoritariamente por países con ingresos altos, #exceptuando algunos países en la región de los balcanes y europa oriental, por lo que escogemos las #diez principales causas de defunción en los países con ingresos altos, que son:
-#
-#1.  Cardiopatía isquémica
-#2.  Enfermedad de Alzheimer y otras demencias
-#3.  Accidente cerebrovascular
-#4.  Cáncer de tráquea, bronquios y pulmón
-#5.  Enfermedad pulmonar obstructiva crónica (EPOC)
-#6.  Infecciones de las vías respiratorias inferiores
-#7.  Cáncer de colon y recto
-#8.  Nefropatías
-#9.  Cardiopatía hipertensiva
-#10. Diabetes mellitus
-#
-#En las variables que tenemos en nuestra base de datos, estas causas se pueden agrupar en las #siguientes variables:
-#
-#1.  *enf_cardiovasculares*
-#2.  *alzheimer*
-#3.  *neoplasias*
-#4.  *infecciones_respi*
-#5.  *enfermedad_crónica*
-#6.  *diabetes_mellitus*
-#
-#Creemos un nuevo subconjunto de datos restringiéndonos a países europeos y estas causas de muerte. #Será un subconjunto de los datos con la transformación *clr* aplicada. Además, vamos a centrar estos #datos, es decir, a restar la media de su respectiva columna.
-#
-#{r datos ACP}
-## Lista de países de Europa
-#paises_europa <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán", 
-#                   "Bélgica", "Bielorrusia", "Bosnia-Herzegovina", "Bulgaria", 
-#                   "Chipre", "Croacia", "Dinamarca", "Eslovaquia", "Eslovenia", 
-#                   "España", "Estonia", "Finlandia", "Francia",
-#                   "Georgia (desambiguación)", "Grecia", "Hungría", "Islandia", 
-#                   "Irlanda (isla)", "Italia", "Kazajistán", "Letonia", "Lituania",
-#                   "Luxemburgo", "Malta", "Moldavia", "Mónaco", "Montenegro",
-#                   "Noruega", "Países Bajos", "Polonia", "Portugal", "Reino Unido",
-#                   "Republica Checa", "República de Macedonia", "Rumania", "Rusia",
-#                   "Serbia", "Suecia", "Suiza", "Turquía", "Ucrania")
-#
-## Lista de causas de muerte
-#causas_muerte_acp = c("enf_cardiovasculares", "alzheimer", "neoplasias",
-#                      "infecciones_respi", "enfermedad_crónica", "diabetes_mellitus")
-#
-## Filtramos los datos
-#data_ACP <- data %>% filter(pais %in% paises_europa) #%>% dplyr::select(all_of(causas_muerte_acp))
-#
-#causas_muerte_total <- colSums(data_ACP[, 5:35])
-#
-#data %>% mutate(nT = rowSums(data[5:35]) ) %>% 
-#  mutate(Parkinson=parkinson/nT) %>% 
-#  group_by(pais, año) %>% 
-#  summarise(x=mean(Parkinson)) %>% 
-#  ggplot(aes(x=reorder(pais,x, FUN=median ), y=x))+
-#  geom_boxplot()+theme(legend.position="none")
-#--
-#
-#
-#{r}
-#data_ACP_clr <- data2 %>% clr %>% as_tibble()
-#
-## Número de filas
-#n = nrow(data_ACP)
-#
-## Matriz de centrado
-#Hn = diag(n) - 1/n
-#
-## Datos centrados
-#data_cen = Hn %*% as.matrix(data_ACP[, 2:7]) %>% as_tibble() %>% add_column(., pais = data_ACP$pais, #.before = 1)
-#
-#data_cen %>% glimpse
-#--
-#
-#Calculamos los valores y vectores propios de la matriz de varianzas-covarianzas.
-#
-#{r ACP}
-#datos_pca = prcomp(data_cen[, 2:7], scale = FALSE)
-#--
-#
-#{r veps}
-#veps = datos_pca$rotation
-#veps
-#--
-#
-#{r vaps}
-#vaps = get_eigenvalue(datos_pca)
-#vaps
-#--
-#
-#{r porcentajes variacion}
-#fviz_eig(datos_pca, addlabels = TRUE, ylim = c(0,100))
-#--
-#
-#{r circulo correlacion dim1-dim2}
-#circ_cor <- fviz_pca_var(datos_pca, col.var = "contrib", repel = TRUE, axes = 1:2)
-#
-#circ_cor
-#--
-#
-#{r representacion individuos, fig.height=9, fig.width=8}
-#autoplot(datos_pca, data = data_cen, loadings = TRUE, loadings.colour = 'blue', loadings.label = #TRUE, loadings.label.size = 3, label = FALSE, colour = 'pais') + theme(legend.position = "bottom")
-#--
-#
-#{r pruebas}
-## Por qué no es igual que data_ACP
-#
-#data2 <- data %>% filter(pais %in% paises_europa) %>% dplyr::select(all_of(causas_muerte_acp))
-#
-#data2clr <- data2 %>% clr %>% as_tibble()
-#
-## Dudas
-#
-## Primero clr y luego subconjunto o viceversa?
-## Escalar o no para el ACP?
 
-```
+## 7 - Análisis en coordenadas principales
 
-## 6 - Análisis en coordenadas principales
+Vamos a realizar también un análisis en coordenadas principales (o escalamiento multidimensional). Este análisis se hará, de nuevo, en los tres conjuntos de datos que hemos construido en el ACP. Por su naturaleza composicional, no podemos utilizar las distancias Euclídea o de Manhattan. En su lugar, utilizaremos la distancia de Aitchison, que es la distancia Euclídea entre dos muestras después de aplicar la transformación CLR. Cuando representemos los puntos, de nuevo los colorearemos según su nivel de IDH.
 
-Realicemos también un análisis en coordenadas principales (o escalamiento multidimensional). Este análisis se hará sobre las causas de muerte. Por su naturaleza composicional, no podemos utilizar las distancias Euclídea o de Manhattan. En su lugar, utilizaremos la distancia de Aitchison, que es la distancia Euclídea entre dos muestras después de aplicar la transformación CLR. Mostremos las distancias entre los primeros 8 elementos de la tabla.
 
-```{r matriz distancias}
-causasdist <- dist(causas_muerte_clr)
-as.matrix(causasdist)[1:8, 1:8]
-ncol(causasdist)
+### MDS medianas
+
+Mostremos las distancias entre los primeros 8 países de la tabla.
+
+```{r matriz distancias medianas}
+dist_medianas <- dist(new_data_medianas_clr[, 2:12])
+dist_matrix_medianas <- as.matrix(dist_medianas)
+colnames(dist_matrix_medianas) <- new_data_medianas_clr$codigo_Pais
+rownames(dist_matrix_medianas) <- new_data_medianas_clr$codigo_Pais
+
+dist_matrix_medianas[1:8, 1:8]
 ```
 
 Ahora, aplicamos el método de coordenadas principales con la función de R `cmdscale`, usando la matriz de distancias anterior y especificando $k = 2$ (dos componentes principales).
 
-```{r mds}
-# Tarda mucho
-#causas_mds <- cmdscale(causasdist, k = 2) %>% 
-#  as_tibble()
+```{r mds medianas, warning=FALSE}
+data_MDS_medianas <- cmdscale(dist_medianas, k = 2) %>% 
+  as_tibble() %>% 
+  mutate(grupo_idh = new_data_medianas_clr$grupo_idh)
 
-#causas_mds %>% 
- # slice_head(n = 15)
+rownames(data_MDS_medianas) <- new_data_medianas_clr$codigo_Pais
+colnames(data_MDS_medianas) <- c("Dim.1", "Dim.2", "grupo_idh")
+
+data_MDS_medianas %>% 
+  slice_head(n = 10)
 ```
+
+Mostramos el gráfico de la matriz de distancias.
+
+```{r grafico mds medianas}
+ggscatter(data_MDS_medianas, 
+          x = "Dim.1",
+          y = "Dim.2",
+          size = 1,
+          color = "grupo_idh",
+          label = rownames(data_MDS_medianas),
+          repel = TRUE,
+          palette = c("darkred", "lightcoral", "#4A90E2", "darkblue"),
+          title = "MDS medianas")
+```
+
+Podemos apreciar que el idh es inversamente proporcional a la segunda dimensión, ya que, de forma general, cuanto más IDH tiene un país, más abajo está.
 
 Por último, calculemos los coeficientes de precisión a partir de los valores propios de la matriz de productos cruzados.
 
-```{r precision}
-Q = as.matrix(causas_muerte_clr) %*% t(as.matrix(causas_muerte_clr))
+```{r precision medianas}
+Q_medianas = as.matrix(new_data_medianas_clr[, 2:12]) %*% t(as.matrix(new_data_medianas_clr[, 2:12]))
 
-# Tarda mucho
-#vaps = eigen(Q)$values
+vaps_medianas = eigen(Q_medianas)$values
 
-#m_12 = (sum(abs(vaps[1:2])) / sum(abs(vaps))) * 100
+m_12_medianas = (sum(abs(vaps_medianas[1:2])) / sum(abs(vaps_medianas))) * 100
 
+m_22_medianas = (sum(vaps_medianas[1:2]^2)/ sum(vaps_medianas^2)) * 100
 
-#m_22 = (sum(vaps[1:2]^2)/ sum(vaps^2)) * 100
+#m_12_medianas
+#m_22_medianas
 ```
 
--   $m_{1,2} =$ `#m_12`
--   $m_{2,2} =$ `#m_22`
+-   $m_{1,2} =$ `r `m_12_medianas`
+-   $m_{2,2} =$ `r `m_22_medianas`
 
-## 7 - Ajuste de modelos NBMM y NBZIMM
+con lo que vemos que hay una buena representación.
 
-Vamos a ajustar los modelos NBMM y NBZIMM a los datos de países europeos. Un primer ajuste será intentar explicar una causa de muerte a partir de una covariable. Veamos los conteos de ceros que hay para los datos europeos.
 
-```{r conteo ceros europa}
-causas_muerte_eu <- data_eu %>% dplyr::select(meningitis:hepatitis_aguda) 
+### MDS 1990
 
-tabla_ceros_eu <- causas_muerte_eu %>% summarise(across(everything(), ~ sum(. == 0)))
+Mostremos las distancias entre los primeros 8 países de la tabla.
 
-tabla_ceros_eu %>% glimpse
+```{r matriz distancias 1990}
+dist_1990 <- dist(new_data_1990_clr[, 2:12])
+dist_matrix_1990 <- as.matrix(dist_1990)
+colnames(dist_matrix_1990) <- new_data_1990_clr$codigo_Pais
+rownames(dist_matrix_1990) <- new_data_1990_clr$codigo_Pais
+
+dist_matrix_1990[1:8, 1:8]
 ```
 
-```{r porcentaje ceros europa}
-100*sum(tabla_ceros_eu) / (nrow(causas_muerte_eu)*ncol(causas_muerte_eu))
+Ahora, aplicamos el método de coordenadas principales con la función de R `cmdscale`, usando la matriz de distancias anterior y especificando $k = 2$ (dos componentes principales).
+
+```{r mds 1990, warning=FALSE}
+data_MDS_1990 <- cmdscale(dist_1990, k = 2) %>% 
+  as_tibble() %>% 
+  mutate(grupo_idh = new_data_1990_clr$grupo_idh)
+
+rownames(data_MDS_1990) <- new_data_1990_clr$codigo_Pais
+colnames(data_MDS_1990) <- c("Dim.1", "Dim.2", "grupo_idh")
+
+data_MDS_1990 %>% 
+  slice_head(n = 10)
 ```
 
-Vemos que el porcentaje total de ceros ha subido un punto porcentual respecto a los datos totales y también cabe resaltar el caso de malaria, con casi la totalidad de ceros.
+Mostramos el gráfico de la matriz de distancias.
 
-Vamos a elegir explicar algunas variables a partir del idh, ya que esta covariable está altamente relacionada con el resto de covariables. Escogeremos meningitis, con un bajo conteo de ceros y alta correlación negativa con idh; hepatitis aguda, con un conteo medio de ceros y alta correlación negativa con idh; y malaria, con un alto conteo de ceros y alta correlación negativa con idh.
-
-Primero, realicemos los ajustes con el modelo NBMM.
-
-```{r modelo NBMM meningitis}
-N = data_eu$total_muertes
-
-m11 = glmm.nb(meningitis ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
-
-summary(m11)
+```{r grafico mds 1990}
+ggscatter(data_MDS_1990, 
+          x = "Dim.1",
+          y = "Dim.2",
+          size = 1,
+          color = "grupo_idh",
+          label = rownames(data_MDS_1990),
+          repel = TRUE,
+          palette = c("darkred", "lightcoral", "#4A90E2", "darkblue"),
+          title = "MDS 1990")
 ```
 
-```{r modelo NBMM hepatitis aguda}
-m12 = glmm.nb(hepatitis_aguda ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
+Podemos ver en la parte superior una agrupación de los países con un IDH bajo, mientras que en la parte inferior izquierda se agrupan los países con un IDH alto.
 
-summary(m12)
+Por último, calculemos los coeficientes de precisión a partir de los valores propios de la matriz de productos cruzados.
+
+```{r precision 1990}
+Q_1990 = as.matrix(new_data_1990_clr[, 2:12]) %*% t(as.matrix(new_data_1990_clr[, 2:12]))
+
+vaps_1990 = eigen(Q_1990)$values
+
+m_12_1990 = (sum(abs(vaps_1990[1:2])) / sum(abs(vaps_1990))) * 100
+
+m_22_1990 = (sum(vaps_1990[1:2]^2)/ sum(vaps_1990^2)) * 100
+
+#m_12_1990
+#m_22_1990
 ```
 
-```{r modelo NBMM malaria}
-m13 = glmm.nb(malaria ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
+-   $m_{1,2} =$ `r `m_12_1990`
+-   $m_{2,2} =$ `r `m_22_1990`
 
-summary(m13)
+Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
+
+
+### MDS 2019
+
+Mostremos las distancias entre los primeros 8 países de la tabla.
+
+```{r matriz distancias 2019}
+dist_2019 <- dist(new_data_2019_clr[, 2:12])
+dist_matrix_2019 <- as.matrix(dist_2019)
+colnames(dist_matrix_2019) <- new_data_2019_clr$codigo_Pais
+rownames(dist_matrix_2019) <- new_data_2019_clr$codigo_Pais
+
+dist_matrix_2019[1:8, 1:8]
 ```
 
-Ahora ajustaremos el modelo ZINBMM.
+Ahora, aplicamos el método de coordenadas principales con la función de R `cmdscale`, usando la matriz de distancias anterior y especificando $k = 2$ (dos componentes principales).
 
-```{r modelo ZINBMM meningitis}
-m21 = glmm.zinb(meningitis ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
+```{r mds 2019, warning=FALSE}
+data_MDS_2019 <- cmdscale(dist_2019, k = 2) %>% 
+  as_tibble() %>% 
+  mutate(grupo_idh = new_data_2019_clr$grupo_idh)
 
-summary(m21)
+rownames(data_MDS_2019) <- new_data_2019_clr$codigo_Pais
+colnames(data_MDS_2019) <- c("Dim.1", "Dim.2", "grupo_idh")
+
+data_MDS_2019 %>% 
+  slice_head(n = 10)
 ```
 
-```{r modelo ZINBMM hepatitis aguda}
-m22 = glmm.zinb(hepatitis_aguda ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
+Mostramos el gráfico de la matriz de distancias.
 
-summary(m22)
+```{r grafico mds 2019}
+ggscatter(data_MDS_2019, 
+          x = "Dim.1",
+          y = "Dim.2",
+          size = 1,
+          color = "grupo_idh",
+          label = rownames(data_MDS_2019),
+          repel = TRUE,
+          palette = c("darkred", "lightcoral", "#4A90E2", "darkblue"),
+          title = "MDS 2019")
 ```
 
-```{r modelo ZINBMM malaria}
-m23 = glmm.zinb(malaria ~ idh + offset(log(N)), random = ~ 1 | pais, data = data_eu)
+En este gráfico también se puede apreciar una transición de abajo hacia arriba de países con más IDH hacia países con menos IDH.
 
-summary(m23)
+Por último, calculemos los coeficientes de precisión a partir de los valores propios de la matriz de productos cruzados.
+
+```{r precision 2019}
+Q_2019 = as.matrix(new_data_2019_clr[, 2:12]) %*% t(as.matrix(new_data_2019_clr[, 2:12]))
+
+vaps_2019 = eigen(Q_2019)$values
+
+m_12_2019 = (sum(abs(vaps_2019[1:2])) / sum(abs(vaps_2019))) * 100
+
+m_22_2019 = (sum(vaps_2019[1:2]^2)/ sum(vaps_2019^2)) * 100
+
+#m_12_2019
+#m_22_2019
+```
+
+-   $m_{1,2} =$ `r `m_12_2019`
+-   $m_{2,2} =$ `r `m_22_2019`
+
+Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
+
+
+
+## 8 - Ajuste de modelo NBMM
+
+Vamos a ajustar el modelo NBMM a los datos. Un primer ajuste será intentar explicar una causa de muerte a partir del IDH.
+
+Haremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH.
+
+```{r modelo NBMM enf_sist_nervioso, echo=TRUE}
+N = new_data$total_muertes
+
+m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + offset(log(N)), random = ~ 1 | pais,
+                              data = new_data)
+
+summary(m_enf_sist_nervioso)
+```
+
+```{r modelo NBMM enf_sist_digestivo, echo=TRUE}
+m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + offset(log(N)), random = ~ 1 | pais,
+                              data = new_data)
+
+summary(m_enf_sist_digestivo)
+```
+
+```{r modelo NBMM_trastornos_embarazo, echo=TRUE}
+m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + offset(log(N)), random = ~ 1 | pais,
+                              data = new_data)
+
+summary(m_trastornos_embarazo)
 ```
