@@ -59,7 +59,6 @@ data <- read_excel("causas_muerte.xls") %>%
 data %>% glimpse
 ```
 
-
 ### 1.1 - Descripción de las variables
 
 Realicemos una pequeña descripción de cada variable:
@@ -100,12 +99,9 @@ Las variables desde la columna *meningitis* hasta *hepatitis_aguda* recogen el n
 
 -   *emisiones_CO2_per_capita*: cantidad de CO2 emitido per cápita en toneladas.
 
-
-
 ## 2 - Transformación de datos
 
 En este apartado realizaremos una transformación a la base de datos con el objetivo de simplificar el posterior análisis. Estas transformaciones incluyen la reducción de países, la agrupación de causas de muerte y la eliminación de algunas covariables
-
 
 ### 2.1 - Reducción de países
 
@@ -128,10 +124,9 @@ paises_eu <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán",
 data_eu <- data %>% filter(pais %in% paises_eu)
 ```
 
-
 ### 2.2 - Agrupación de causas de muerte
 
-Veamos la distribución temporal de la cantidad de defunciones de cada causa mediante gráficos de cajas.
+Veamos la distribución temporal de la cantidad de defunciones de cada causa mediante gráficos de cajas, ordenados de mayor a menor cantidad de muertes.
 
 ```{r distribucion muertes}
 total_muertes_año <- data_eu %>%
@@ -141,12 +136,25 @@ total_muertes_año <- data_eu %>%
 
 total_muertes_año %>% 
   pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
-  mutate(cm = factor(causa_muerte)) %>% 
+  mutate(cm = factor(causa_muerte), muerte = muerte + 1) %>% 
   ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte)) +
+  scale_y_log10() +
   geom_boxplot(width = 0.75, color = "black") +
   theme_minimal() +
   labs(x = "Causa de muerte", y = "Número de muertes") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+A continuación, una tabla con el número de defunciones totales por cada causa, también ordenada de mayor a menor cantidad de muertes.
+
+```{r tabla muertes, fig.width=8}
+tabla_total_muertes <- total_muertes_año %>%
+  summarise(across(meningitis:hepatitis_aguda, sum)) %>%
+  pivot_longer(cols = everything(), names_to = "Causa", values_to = "Total_muertes") %>%
+  arrange(desc(Total_muertes)) %>%
+  tableGrob()
+
+grid.arrange(tabla_total_muertes[1:16], tabla_total_muertes[c(1, 17:32)], ncol = 2)
 ```
 
 Como podemos ver, hay algunas causas de muerte que apenas causan impacto. Por ello, con el objetivo de reducir dimensionalidad, vamos a agruparlas siguiendo el criterio de la OMS en [este enlace](https://icd.who.int/browse/2024-01/mms/en). Los grupos que nos quedan son los siguientes:
@@ -218,15 +226,27 @@ total_muertes_agrupadas_año %>%
   mutate(cm = factor(causa_muerte)) %>% 
   ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte)) +
   geom_boxplot(width = 0.5, color = "black") +
+  scale_y_log10() +
   theme_minimal() +
   labs(x = "Causa de muerte", y = "Número de muertes") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+A continuación, de nuevo, una tabla con el número de defunciones totales por cada causa.
+
+```{r tabla muertes agrupadas}
+tabla_total_muertes_agrupadas <- total_muertes_agrupadas_año %>%
+  summarise(across(enf_infec_paras:enf_cronicas, sum)) %>%
+  pivot_longer(cols = everything(), names_to = "Causa", values_to = "Total_muertes") %>%
+  arrange(desc(Total_muertes)) %>%
+  tableGrob()
+
+grid.arrange(tabla_total_muertes_agrupadas, ncol = 1)
+```
 
 ### 2.3 - Eliminación de algunas covariables
 
-Recordemos que las covariables que tenemos son *población*, *pib*, *idh*, *esperanza_vida_m*, *esperanza_vida_h*, *esperanza_vida*, *emisiones_CO2*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita*. Sin embargo, notemos que nos proporcionan información redundante. El Índice de Desarrollo Humano se calcula a partir del PIB y de la esperanza de vida, así que nos podríamos deshacer de estas variables. Además, *emisiones_CO2_per_capita* y *emisiones_CO2_PIB*, son derivadas de *emisiones_CO2*, la cual está muy relacionadas con el PIB. En efecto, podemos ver las correlaciones que tienen las variables entre sí en la siguiente matriz de correlaciones.
+Recordemos que las covariables que tenemos son *población*, *pib*, *idh*, *esperanza_vida_m*, *esperanza_vida_h*, *esperanza_vida*, *emisiones_CO2*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita*. Sin embargo, notemos que nos proporcionan información redundante. El Índice de Desarrollo Humano se calcula a partir del PIB y de la esperanza de vida, así que nos podríamos deshacer de estas variables. Por otro lado, cuanta más población tenga un país, más emisiones de CO2 habrá, por lo que también podemos eliminar la variable *emisiones_CO2*. En efecto, podemos ver las altas correlaciones que tienen las variables entre sí en la siguiente matriz de correlaciones.
 
 ```{r matriz correlaciones covariables}
 data_eu_agrupado %>%
@@ -236,16 +256,16 @@ data_eu_agrupado %>%
              title = "Matriz de correlaciones de las covariables")
 ```
 
-De esta forma, dejaremos únicamente las covariables *poblacion* e *idh* en la base de datos.
+Podemos ver efectivamente que *idh* está altamente correlacionado con las variables relacionadas con la esperanza de vida. También vemos una alta correlación entre *poblacion* y *emisiones_CO2*. Sin embargo, la correlación entre *idh* y *pib* no es tan alta, pero esto es debido a que el IDH se calcula a partir del logaritmo del PIB, por lo que no tienen alta correlación lineal.
+
+De esta forma, dejaremos únicamente las covariables *poblacion*, *idh*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita* en la base de datos.
 
 ```{r eliminacion covariables}
 new_data <- data_eu_agrupado %>%
-  dplyr::select(-starts_with("emisiones"), -starts_with("esperanza"), -pib)
+  dplyr::select(-starts_with("esperanza"), -emisiones_CO2,-pib)
 
 new_data %>% glimpse
 ```
-
-
 
 ## 3 - Tratamiento de datos composicionales
 
@@ -256,7 +276,6 @@ Antes de poder aplicar técnicas de análisis de datos composicionales hay que t
 1.  Se sustituyen (*imputan*) los ceros.
 
 2.  Se transforman logarítmicamente los datos.
-
 
 ### 3.1 - Imputación de ceros
 
@@ -284,7 +303,6 @@ causas_muerte_imp <- causas_muerte %>%
   mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
 ```
 
-
 ### 3.2 - Transformación CLR
 
 Utilizaremos la transformación logarítmica centrada, que consiste en dividir cada entrada por la media geométrica de la fila y aplicarle un logaritmo.
@@ -301,13 +319,11 @@ new_data_clr[, 5:15] <- causas_muerte %>%
 new_data_clr %>% glimpse
 ```
 
-
-
 ## 4 - Matriz de correlaciones
 
 Analicemos la matriz de correlaciones de las causas de muerte y las covariables. Usaremos la correlación de Spearman y no la de Pearson ya que nuestras variables de interés, las causas de muerte, son discretas.
 
-```{r matriz correlaciones}
+```{r matriz correlaciones, fig.width=9}
 new_data_clr %>%
   dplyr::select(where(is.numeric)) %>%
   cor(., method = "spearman") %>% 
@@ -315,13 +331,11 @@ new_data_clr %>%
              title = "Matriz de correlaciones")
 ```
 
-Fijémonos primero en las correlaciones entre causas de muerte y covariables. La variable *población* apenas tiene correlación con las causas de muerte. Por otro lado, la variable *idh* presenta altas correlaciones con algunas causas, tanto positivamente como negativamente. Esto es debido a que un IDH bajo corresponde a países poco desarrollados y podemos ver en las correlaciones negativas enfermedades que suelen ser comunes en estos países: enfermedades infecciosas y parasitarias, las cuales recordemos que engloban a meningitis, malaria, VIH y tuberculosis; y trastornos del embarazo, los cuales engloban trastornos maternos y neonatales. Luego, en las correlaciones positivas, podemos ver enfermedades del sistema nervioso, que engloba alzheimer y parkinson; neoplasias y enfermedades crónicas.
+Fijémonos primero en las correlaciones entre causas de muerte y covariables. Las variables *población* y *emisiones_CO2_per_capita* apenas tiene correlación con las causas de muerte. La variable *emisiones_CO2_PIB* tiene correlaciones más altas, las más significativas son con *enf_sist_nervioso* y *causas_externas*. Por otro lado, la variable *idh* presenta altas correlaciones con algunas causas, tanto positivamente como negativamente. Esto es debido a que un IDH bajo corresponde a países poco desarrollados y podemos ver en las correlaciones negativas enfermedades que suelen ser comunes en estos países: enfermedades infecciosas y parasitarias, las cuales recordemos que engloban a meningitis, malaria, VIH y tuberculosis; y trastornos del embarazo, los cuales engloban trastornos maternos y neonatales. Luego, en las correlaciones positivas, podemos ver enfermedades del sistema nervioso, que engloba alzheimer y parkinson; neoplasias y enfermedades crónicas.
 
 Por último, vemos que hay algunas enfermedades bastante correlacionadas y otras que no. La correlación positiva que más destaca es entre enfermedades del sistema nervioso y neoplasias, con un valor de $0.82$; mientras que la correlación negativa más destacada es entre enfermedades del sistema nervioso y trastornos del embarazo, con un valos de $-0.72$. La correlaciones más pequeña en valor absoluto, con un valor de $0$, corresponde a enfermedades metabólicas con infecciones respiratorias.
 
-Cabe destacar el caso de la variable *total_muertes* que no tiene ninguna correlación considerable exceptuando con *población*, que es una correlación obvia.
-
-
+Cabe destacar el caso de la variable *total_muertes* que no tiene ninguna correlación considerable exceptuando con *población*, la cual es obvia.
 
 ## 5 - Tendencias temporales
 
@@ -395,8 +409,8 @@ En estos últimos tres gráficos se observa un comportamiento sinusoidal, con te
 
 Por último, comparemos la evolución de todas las causas en tres gráficos diferentes: número de muertes bajo, número de muertes medio y número de muertes alto.
 
-```{r grafico resumen, fig.width=10, fig.height=7}
-par(mfrow = c(2, 2), las = 1)
+```{r grafico resumen, fig.height=8, fig.width=8}
+par(mfrow = c(3, 2), las = 1)
 
 colores = c("blue", "red", "green", "purple", "orange", "black", "pink", "yellow", "cyan",
             "darkgreen", "magenta")
@@ -410,28 +424,30 @@ ts.plot(total_muertes_agrupadas_año.ts[, c("enf_infec_paras", "enf_metabolicas"
                                            "trastornos_embarazo", "trastornos_mentales")],
         main = "Número de muertes bajo", col = colores[1:4], lwd = 2)
 
+plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")  # Gráfico vacío para la leyenda
+legend("left", legend = nombres_causas[1:4], col = colores[1:4], lwd = 2, bty = "n")
+
 ts.plot(total_muertes_agrupadas_año.ts[, c("enf_sist_nervioso", "causas_externas",
                                            "infecciones_respi", "enf_sist_digestivo",
                                            "enf_cronicas")],
         main = "Número de muertes medio", col = colores[5:9], lwd = 2)
 
+plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")  # Gráfico vacío para la leyenda
+legend("left", legend = nombres_causas[5:9], col = colores[5:9], lwd = 2, bty = "n")
+
 ts.plot(total_muertes_agrupadas_año.ts[, c("enf_cardiovasculares", "neoplasias")],
         main = "Número de muertes alto", col = colores[10:11], lwd = 2)
 
-
 plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")  # Gráfico vacío para la leyenda
-legend("center", legend = nombres_causas, col = colores, lwd = 2, bty = "n")
+legend("left", legend = nombres_causas[10:11], col = colores[10:11], lwd = 2, bty = "n")
 
 # Notación científica predeterminada
-options(scipen = 0)
+#options(scipen = 0)
 ```
-
-
 
 ## 6 - Análisis en componentes principales
 
 En este apartado realizaremos análisis en componentes principales (ACP). Veremos tres análisis: con las medianas temporales para cada país, en 1990 y en 2019; con el objetivo de ver si se producen cambios significativos a lo largo del tiempo en las agrupaciones de países.
-
 
 ### ACP medianas temporales
 
@@ -591,7 +607,6 @@ biplot_medianas
 
 Podemos ver que los países con mayor IDH se agrupan en el tercer cuadrante, caracterizado por las enfermedades del sistema nervioso y las neoplasias, propias de países más desarrollados. Por otro lado, los países con menor IDH se agrupan en el primer cuadrante, caracterizado por las enfermedades infecciosas y parasitarias y los trastornos del embarazo, propias de países menos desarrollados. A su vez, podemos ver una transición del IDH entre el primer y el tercer cuadrante.
 
-
 ### ACP 1990
 
 Veamos ahora un análisis en componentes principales donde tomaremos los datos de 1990. Construyamos primero este conjunto de datos.
@@ -748,8 +763,6 @@ biplot_1990
 ```
 
 En este gráfico no podemos ver una agrupación clara.
-
-
 
 ### ACP 2019
 
@@ -908,19 +921,15 @@ biplot_2019
 
 En este gráfico tampoco podemos ver una agrupación clara.
 
-
 Para acabar veamos juntos los tres gráficos que hemos analizado:
 
 ```{r resumen biplots dim1-dim2, fig.width=20, fig.height=20}
 grid.arrange(biplot_1990, biplot_2019, biplot_medianas, ncol = 2)
 ```
 
-
-
 ## 7 - Análisis en coordenadas principales
 
 Vamos a realizar también un análisis en coordenadas principales (o escalamiento multidimensional). Este análisis se hará, de nuevo, en los tres conjuntos de datos que hemos construido en el ACP. Por su naturaleza composicional, no podemos utilizar las distancias Euclídea o de Manhattan. En su lugar, utilizaremos la distancia de Aitchison, que es la distancia Euclídea entre dos muestras después de aplicar la transformación CLR. Cuando representemos los puntos, de nuevo los colorearemos según su nivel de IDH.
-
 
 ### MDS medianas
 
@@ -980,11 +989,10 @@ m_22_medianas = (sum(vaps_medianas[1:2]^2)/ sum(vaps_medianas^2)) * 100
 #m_22_medianas
 ```
 
--   $m_{1,2} =$ `r `m_12_medianas`
--   $m_{2,2} =$ `r `m_22_medianas`
+-   $m_{1,2} =$ `r`m_12_medianas\`
+-   $m_{2,2} =$ `r`m_22_medianas\`
 
 con lo que vemos que hay una buena representación.
-
 
 ### MDS 1990
 
@@ -1044,11 +1052,10 @@ m_22_1990 = (sum(vaps_1990[1:2]^2)/ sum(vaps_1990^2)) * 100
 #m_22_1990
 ```
 
--   $m_{1,2} =$ `r `m_12_1990`
--   $m_{2,2} =$ `r `m_22_1990`
+-   $m_{1,2} =$ `r`m_12_1990\`
+-   $m_{2,2} =$ `r`m_22_1990\`
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
-
 
 ### MDS 2019
 
@@ -1108,12 +1115,10 @@ m_22_2019 = (sum(vaps_2019[1:2]^2)/ sum(vaps_2019^2)) * 100
 #m_22_2019
 ```
 
--   $m_{1,2} =$ `r `m_12_2019`
--   $m_{2,2} =$ `r `m_22_2019`
+-   $m_{1,2} =$ `r`m_12_2019\`
+-   $m_{2,2} =$ `r`m_22_2019\`
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
-
-
 
 ## 8 - Ajuste de modelo NBMM
 
@@ -1143,3 +1148,8 @@ m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + offset(log(N)), rand
 
 summary(m_trastornos_embarazo)
 ```
+
+## 9 - Dudas
+
+-   En 2.3: Ya que no haremos parte temporal, ¿consideramos *año* como covariable? Si es así, variable cuantitativa?
+-   En 6 y 7. ¿Coloreamos por grupos como está o coloreamos de forma gradual?
