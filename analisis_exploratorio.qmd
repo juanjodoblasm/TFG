@@ -32,6 +32,7 @@ library(ggplot2)
 
 # 3
 library(compositions)
+library(zCompositions)
 
 # 4
 library(ggcorrplot)
@@ -53,6 +54,7 @@ Ahora, carguemos nuestra base de datos y presentemos un resumen.
 data <- read_excel("causas_muerte.xls") %>% 
   # Transformamos la variable año en ordinal
   mutate(año = as.ordered((año))) %>% 
+  mutate(idh = idh*100) %>% 
   # Creamos una variable con el total de muertes
   rowwise() %>%  mutate(total_muertes = sum(c_across(meningitis:hepatitis_aguda)), .after = hepatitis_aguda) %>% ungroup()
 
@@ -130,7 +132,7 @@ Veamos la distribución temporal de la cantidad de defunciones de cada causa med
 
 ```{r distribucion muertes}
 total_muertes_año <- data_eu %>%
-  select(año, meningitis:hepatitis_aguda) %>%
+  dplyr::select(año, meningitis:hepatitis_aguda) %>%
   group_by(año) %>%
   summarise(across(everything(), ~ sum(.)))
 
@@ -186,21 +188,21 @@ Creemos la nueva base de datos con las causas de muerte agrupadas.
 ```{r datos causas agrupadas}
 data_eu_agrupado <- data_eu %>%
   mutate(
-    enf_infec_paras = rowSums(select(., meningitis, malaria, VIH, tuberculosis)),
-    enf_sist_nervioso = rowSums(select(., alzheimer, parkinson)),
-    enf_metabolicas = rowSums(select(., def_nutricionales, diabetes_mellitus, 
+    enf_infec_paras = rowSums(dplyr::select(., meningitis, malaria, VIH, tuberculosis)),
+    enf_sist_nervioso = rowSums(dplyr::select(., alzheimer, parkinson)),
+    enf_metabolicas = rowSums(dplyr::select(., def_nutricionales, diabetes_mellitus, 
                                      desnutrición_energetica)),
-    causas_externas = rowSums(select(., ahogo, violencia_inter, autolesiones, exp_fuer_naturaleza,
+    causas_externas = rowSums(dplyr::select(., ahogo, violencia_inter, autolesiones, exp_fuer_naturaleza,
                                      conflicto_terrorismo, lesiones_carretera, exp_amb_temperatura,
                                      envenenamientos, fuego_calientes)),
-    trastornos_embarazo = rowSums(select(., trastornos_maternos, trastornos_neonatales)),
-    trastornos_mentales = rowSums(select(., trastornos_cons_drogas, trastornos_Cons_alcohol)),
-    enf_sist_digestivo = rowSums(select(., enf_diarreicas, cirrosis_crónicas,
+    trastornos_embarazo = rowSums(dplyr::select(., trastornos_maternos, trastornos_neonatales)),
+    trastornos_mentales = rowSums(dplyr::select(., trastornos_cons_drogas, trastornos_Cons_alcohol)),
+    enf_sist_digestivo = rowSums(dplyr::select(., enf_diarreicas, cirrosis_crónicas,
                                         enfermedades_digestivas, hepatitis_aguda)),
-    enf_cronicas = rowSums(select(., enfermedad_crónica, enfermedades_cronicas)),
+    enf_cronicas = rowSums(dplyr::select(., enfermedad_crónica, enfermedades_cronicas)),
     .after = poblacion
   ) %>%
-  select(-meningitis, -malaria, -VIH, -tuberculosis,
+  dplyr::select(-meningitis, -malaria, -VIH, -tuberculosis,
          -alzheimer, -parkinson,
          -def_nutricionales, -diabetes_mellitus, -desnutrición_energetica,
          -ahogo, -violencia_inter, -autolesiones, -exp_fuer_naturaleza, -conflicto_terrorismo,
@@ -217,7 +219,7 @@ Veamos de nuevo la distribución temporal de la cantidad de defunciones de cada 
 
 ```{r distribucion muertes agrupadas}
 total_muertes_agrupadas_año <- data_eu_agrupado %>%
-  select(año, enf_infec_paras:enf_cronicas) %>%
+  dplyr::select(año, enf_infec_paras:enf_cronicas) %>%
   group_by(año) %>%
   summarise(across(everything(), ~ sum(.)))
 
@@ -298,10 +300,7 @@ La siguiente salida nos da el porcentaje de ceros:
 
 Como el porcentaje de ceros es menor a $10\%$, los sustituiremos por $0,65$.
 
-```{r imputacion ceros}
-causas_muerte_imp <- causas_muerte %>%
-  mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65)))
-```
+
 
 ### 3.2 - Transformación CLR
 
@@ -309,6 +308,8 @@ Utilizaremos la transformación logarítmica centrada, que consiste en dividir c
 
 ```{r transformacion clr}
 new_data_clr <- new_data
+
+#new_data_clr[, 5:15] <- cmultRepl(new_data_clr[, 5:15], method="GBM", output="p-counts", suppress.print=TRUE, z.warning=0.99)
 
 new_data_clr[, 5:15] <- causas_muerte %>% 
   # Imputación de ceros
@@ -574,7 +575,7 @@ Por último veamos una representación de los países en el plano principal con 
 
 ```{r grupos IDH medianas}
 cuartiles_medianas <- new_data_medianas %>% 
-  select(idh) %>% 
+  dplyr::select(idh) %>% 
   pull %>% 
   quantile(., probs = c(0.25, 0.5, 0.75))
 
@@ -731,7 +732,7 @@ Por último veamos una representación de los países en el plano principal con 
 
 ```{r grupos IDH 1990}
 cuartiles_1990 <- new_data_1990 %>% 
-  select(idh) %>% 
+  dplyr::select(idh) %>% 
   pull %>% 
   quantile(., probs = c(0.25, 0.5, 0.75))
 
@@ -888,7 +889,7 @@ Por último veamos una representación de los países en el plano principal con 
 
 ```{r grupos IDH 2019}
 cuartiles_2019 <- new_data_2019 %>% 
-  select(idh) %>% 
+  dplyr::select(idh) %>% 
   pull %>% 
   quantile(., probs = c(0.25, 0.5, 0.75))
 
@@ -985,12 +986,12 @@ m_12_medianas = (sum(abs(vaps_medianas[1:2])) / sum(abs(vaps_medianas))) * 100
 
 m_22_medianas = (sum(vaps_medianas[1:2]^2)/ sum(vaps_medianas^2)) * 100
 
-#m_12_medianas
-#m_22_medianas
+m_12_medianas
+m_22_medianas
 ```
 
--   $m_{1,2} =$ `r`m_12_medianas\`
--   $m_{2,2} =$ `r`m_22_medianas\`
+-   $m_{1,2} =$ `r m_12_medianas`
+-   $m_{2,2} =$ `r m_22_medianas`
 
 con lo que vemos que hay una buena representación.
 
@@ -1133,6 +1134,11 @@ m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + offset(log(N)), random =
                               data = new_data)
 
 summary(m_enf_sist_nervioso)
+```
+
+```{r}
+sort(m_enf_sist_nervioso$coefficients$random$pais)
+#mean(m_enf_sist_nervioso$coefficients$random$pais)
 ```
 
 ```{r modelo NBMM enf_sist_digestivo, echo=TRUE}
