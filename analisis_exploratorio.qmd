@@ -79,7 +79,7 @@ data[, "pais"] %>% unique
 data[, "año"] %>% table
 ```
 
--   *población*: número de habitantes de cada país en cada año.
+-   *poblacion*: número de habitantes de cada país en cada año.
 
 Las variables desde la columna *meningitis* hasta *hepatitis_aguda* recogen el número de muertes por la causa que da nombre a la variable en cada país y cada año.
 
@@ -1049,12 +1049,12 @@ m_12_1990 = (sum(abs(vaps_1990[1:2])) / sum(abs(vaps_1990))) * 100
 
 m_22_1990 = (sum(vaps_1990[1:2]^2)/ sum(vaps_1990^2)) * 100
 
-#m_12_1990
-#m_22_1990
+m_12_1990
+m_22_1990
 ```
 
--   $m_{1,2} =$ `r`m_12_1990\`
--   $m_{2,2} =$ `r`m_22_1990\`
+-   $m_{1,2} =$ `r m_12_1990`
+-   $m_{2,2} =$ `r m_22_1990`
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
 
@@ -1112,12 +1112,12 @@ m_12_2019 = (sum(abs(vaps_2019[1:2])) / sum(abs(vaps_2019))) * 100
 
 m_22_2019 = (sum(vaps_2019[1:2]^2)/ sum(vaps_2019^2)) * 100
 
-#m_12_2019
-#m_22_2019
+m_12_2019
+m_22_2019
 ```
 
--   $m_{1,2} =$ `r`m_12_2019\`
--   $m_{2,2} =$ `r`m_22_2019\`
+-   $m_{1,2} =$ `r m_12_2019`
+-   $m_{2,2} =$ `r m_22_2019`
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
 
