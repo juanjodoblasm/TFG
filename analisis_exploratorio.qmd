@@ -300,8 +300,6 @@ La siguiente salida nos da el porcentaje de ceros:
 
 Como el porcentaje de ceros es menor a $10\%$, los sustituiremos por $0,65$.
 
-
-
 ### 3.2 - Transformación CLR
 
 Utilizaremos la transformación logarítmica centrada, que consiste en dividir cada entrada por la media geométrica de la fila y aplicarle un logaritmo.
@@ -1123,39 +1121,88 @@ Con estos valores de los coeficientes de precisión vemos que hay una buena repr
 
 ## 8 - Ajuste de modelo NBMM
 
-Vamos a ajustar el modelo NBMM a los datos. Un primer ajuste será intentar explicar una causa de muerte a partir del IDH.
+Con el objetivo de ver cómo afecta el IDH al número de muertes por diferentes causas, vamos a ajustar un modelo binomial negativo mixto. Antes de entrar en detalles, conviene justificar por qué utilizamos un modelo Binomial Negativo en lugar de uno Poisson, que suele ser el más usual para modelizar datos de conteo.
 
-Haremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH.
+### Motivación para usar el modelo Binomial Negativo
 
-```{r modelo NBMM enf_sist_nervioso, echo=TRUE}
-N = new_data$total_muertes
+Los modelos de regresión Poisson asumen que la media y la varianza de la variable respuesta son iguales (esto es, $E[Y] = \text{Var}(Y)$), lo que se conoce como *equidispersión*. Sin embargo, en el caso de conteo de muertes podemos observar *sobredispersión*, es decir, que la varianza exceda notablemente a la media. En esos casos, el modelo Poisson tiende a infravalorar la probabilidad de observar valores atípicamente altos, dando lugar a errores sistemáticos en la estimación de los parámetros y de las incertidumbres asociadas.
 
-m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + offset(log(N)), random = ~ 1 | pais,
-                              data = new_data)
+Para ilustrar este fenómeno, elegimos un país concreto (por ejemplo, España) y examinamos el número de muertes anuales causadas por enfermedades del sistema nervioso entre 1990 y 2019. Si agregamos estos datos y calculamos la media y varianza observadas, obtenemos
+
+```{r media y varianza España}
+new_data %>%
+  filter(pais == "España") %>%
+  summarise(mean = mean(enf_sist_nervioso), var = var(enf_sist_nervioso))
+```
+
+Mientras que el modelo Poisson sólo encaja bien si $\hat{\mu} \approx \hat{\sigma}^2$, vemos que $\hat{\sigma}^2 = 44076945$ es muy superior a $26381.7$, indicando sobredispersión. Esto haría que el modelo Poisson:
+
+-   Subestime sistemáticamente la probabilidad de observar años con conteos muy altos.
+-   Proporcione intervalos de confianza demasiado estrechos para los parámetros.
+
+La regresión Binomial Negativa soluciona ese inconveniente al permitir que la varianza sea mayor que la media mediante un parámetro adicional de sobredispersión $\alpha$, cumpliendo:
+
+$$
+\text{Var}(Y) = E[Y] + \alpha\ \bigl(E[Y]\bigr)^2.
+$$
+
+De este modo, si los conteos presentan una variabilidad superior a la que asumiría un modelo Poisson, la Binomial Negativa constituye una elección más adecuada y reduce el sesgo en las estimaciones.
+
+### Descripción del NBMM
+
+Basándonos en la motivación anterior, proponemos un modelo Binomial Negativo Mixto
+(NBMM) que, además de corregir la sobredispersión, incorpora un \textit{offset} para tener
+en cuenta el total anual de muertes en cada país y un efecto aleatorio que capture
+la heterogeneidad intrínseca entre países, además de un spline cúbico para capturar el efecto del tiempo. La formulación es la siguiente:
+
+$$
+\log(\mu_{ijk}) = \log\bigl(N_{ij}\bigr) + \beta_{0k} + \beta_{1k}x_{ij} + \beta_{2k}t_j + \beta_{3k}t_j^2 + \beta_{4k}t_j^3 + u_i,
+$$
+
+donde 
+
+-   $\mu_{ijk}$ es la media de muertes por la enfermedad $k$ en el país $i$ en el año $j$.
+-   $N_{ij}$ es el total de muertes en el país $i$ en el año $j$.
+-   $x_{ij}$ es el IDH del país $i$ en el año $j$.
+-   $t_j$ es el año.
+-   $\beta_{0k}$, $\beta_{1k}$, $\beta_{2k}$, $\beta_{3k}$, $\beta_{4k}$ son los coeficientes a estimar.
+-   $u_i \sim \mathcal{N}(0,\sigma^2)$ es el efecto aleatorio país.
+
+### Estimación del modelo
+
+Para estimar el modelo, primero vamos a reescalar nuestra variable año de forma que caiga en el intervalo $[0,1]$ para evitar posibles errores por *overflow*. Además, al querer un spline cúbico necesitamos las variables año al cuadrado y año al cubo.
+
+```{r polinomio año}
+new_data <- new_data %>% 
+  mutate(año = as.numeric(año)) %>% 
+  mutate(año = (año - min(año)) / (max(año) - min(año))) %>% 
+  rowwise() %>%  
+  mutate(año2 = año^2, .after = año) %>% 
+  mutate(año3 = año^3, .after = año2) %>% 
+  ungroup()
+```
+
+Realizaremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH.
+
+```{r modelo NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
+N = new_data$total_muertes # offset
+
+m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
+                              random = ~ 1 | pais, data = new_data)
 
 summary(m_enf_sist_nervioso)
 ```
 
-```{r}
-sort(m_enf_sist_nervioso$coefficients$random$pais)
-#mean(m_enf_sist_nervioso$coefficients$random$pais)
-```
-
-```{r modelo NBMM enf_sist_digestivo, echo=TRUE}
-m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + offset(log(N)), random = ~ 1 | pais,
-                              data = new_data)
+```{r modelo NBMM enf_sist_digestivo, echo=TRUE, warning = FALSE, message = FALSE}
+m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + año + año2 + año3 + offset(log(N)),
+                              random = ~ 1 | pais, data = new_data)
 
 summary(m_enf_sist_digestivo)
 ```
 
-```{r modelo NBMM_trastornos_embarazo, echo=TRUE}
-m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + offset(log(N)), random = ~ 1 | pais,
-                              data = new_data)
+```{r modelo NBMM trastornos_embarazo, echo=TRUE, warning = FALSE, message = FALSE}
+m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + año + año2 + año3 + offset(log(N)),
+                              random = ~ 1 | pais, data = new_data)
 
 summary(m_trastornos_embarazo)
 ```
-
-## 9 - Dudas
-
--   En 2.3: Ya que no haremos parte temporal, ¿consideramos *año* como covariable? Si es así, variable cuantitativa?
--   En 6 y 7. ¿Coloreamos por grupos como está o coloreamos de forma gradual?
