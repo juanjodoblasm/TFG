@@ -29,6 +29,7 @@ library(tidyverse)
 
 # 2
 library(ggplot2)
+library(xtable)
 
 # 3
 library(compositions)
@@ -266,7 +267,7 @@ De esta forma, dejaremos únicamente las covariables *poblacion*, *idh*, *emisio
 new_data <- data_eu_agrupado %>%
   dplyr::select(-starts_with("esperanza"), -emisiones_CO2,-pib)
 
-new_data %>% glimpse
+new_data %>% head(5) %>% xtable()
 ```
 
 ## 3 - Tratamiento de datos composicionales
@@ -1187,11 +1188,21 @@ Realizaremos tres ajustes: uno con enfermedades del sistema nervioso, con una al
 ```{r modelo NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
 N = new_data$total_muertes # offset
 
-m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
+m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + año2 + año3 + offset(log(N)),
                               random = ~ 1 | pais, data = new_data)
 
+#m_enf_sist_nervioso2 = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
+                              #random = ~ 1 | pais, data = new_data)
+
 summary(m_enf_sist_nervioso)
+#anova.lme(m_enf_sist_nervioso2, m_enf_sist_nervioso1)
 ```
+```{r}
+residuales = m_enf_sist_nervioso$residuals
+sd(residuales[,2])
+```
+
+
 
 ```{r modelo NBMM enf_sist_digestivo, echo=TRUE, warning = FALSE, message = FALSE}
 m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + año + año2 + año3 + offset(log(N)),
@@ -1205,4 +1216,16 @@ m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + año + año2 + año3
                               random = ~ 1 | pais, data = new_data)
 
 summary(m_trastornos_embarazo)
+```
+
+```{r}
+u = m_enf_sist_nervioso$coefficients$random$pais
+sd(u)
+```
+
+```{r}
+u = m_trastornos_embarazo$coefficients$random$pais
+u
+plot(density(u))
+shapiro.test(u)
 ```
