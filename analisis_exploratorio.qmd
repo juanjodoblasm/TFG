@@ -47,6 +47,7 @@ library(ggpubr)
 
 # 8
 library(NBZIMM)
+library(pscl)
 ```
 
 Ahora, carguemos nuestra base de datos y presentemos un resumen.
@@ -267,7 +268,7 @@ De esta forma, dejaremos únicamente las covariables *poblacion*, *idh*, *emisio
 new_data <- data_eu_agrupado %>%
   dplyr::select(-starts_with("esperanza"), -emisiones_CO2,-pib)
 
-new_data %>% head(5) %>% xtable()
+new_data %>% head(5) %>% glimpse %>% xtable()
 ```
 
 ## 3 - Tratamiento de datos composicionales
@@ -1185,24 +1186,122 @@ new_data <- new_data %>%
 
 Realizaremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH.
 
-```{r modelo NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
+#### Ajuste del modelo para enfermedades del sistema nervioso
+
+```{r modelo 1 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
 N = new_data$total_muertes # offset
 
-m_enf_sist_nervioso = glmm.nb(enf_sist_nervioso ~ idh + año2 + año3 + offset(log(N)),
+m_enf_sist_nervioso1 = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
                               random = ~ 1 | pais, data = new_data)
-
-#m_enf_sist_nervioso2 = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
-                              #random = ~ 1 | pais, data = new_data)
-
-summary(m_enf_sist_nervioso)
-#anova.lme(m_enf_sist_nervioso2, m_enf_sist_nervioso1)
 ```
+
+```{r summary modelo 1}
+summary(m_enf_sist_nervioso1)
+```
+
+Podemos ver que el p-valor de la variable *año* es alto ($0.2621$) lo que sugiere que la variable no es significativa, es decir, que puede que su coeficiente asociado valga $0$. Vamos a eliminarla y comparar el modelo resultante.
+
+```{r modelo 0 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
+m_enf_sist_nervioso0 = glmm.nb(enf_sist_nervioso ~ idh + año2 + año3 + offset(log(N)),
+                              random = ~ 1 | pais, data = new_data)
+```
+
+```{r summary modelo 0}
+summary(m_enf_sist_nervioso0)
+```
+
+En este nuevo modelo vemos que todas las variables tienen un p-valor bajo, lo que sugiere que son significativas. Vamos a comparar ambos modelos calculando la diferencia de las desviaciones $\Delta D$ y viendo si se encuentra en la región crítica de la distribución $\chi^2(1)$
+
+Sea $M_0$ el modelo más simple con hipótesis
+$$
+    H_0:\; (\mathbf{\beta}, \alpha) = (\beta_{0,2}, \beta_{1,2}, \beta_{3,2}, \beta_{4,2}, \alpha)^T,
+$$
+y sea $M_1$ el modelo que incluye el parámetro para la variable \textit{año}, con hipótesis
+$$
+    H_1:\; (\mathbf{\beta}, \alpha) = (\beta_{0,2}, \beta_{1,2}, \beta_{2,2}, \beta_{3,2}, \beta_{4,2}, \alpha)^T.
+$$
+
+La desviación del modelo $M_0$ es:
+
+```{r D0}
+Y = new_data$enf_sist_nervioso
+lnN = log(new_data$total_muertes)
+
+b0 = m_enf_sist_nervioso0$coefficients$fixed
+a0 = m_enf_sist_nervioso0$sigma
+u0 = rep(m_enf_sist_nervioso0$coefficients$random$pais, each = 30)
+X0 <- m_enf_sist_nervioso0$data %>% dplyr::select(idh, año2, año3) %>% cbind(1, .) %>%
+      as.matrix()
+colnames(X0)[1] = "intercept"
+eta0 = lnN + X0 %*% b0 + u0
+
+D0 = 2*(Y%*%(log(Y)-eta0)-(1/a0 + Y)%*%log((1+a0*Y)/(1+a0*exp(eta0))))
+D0
+```
+
+y el p-valor $P(D_0 \ge 440.2696)$ (con $D_0 \sim \chi^2(1331)$) es
+
+```{r p-valor 0}
+pchisq(D0, df = 1331, lower.tail = FALSE)
+```
+
+lo que sugiere que el modelo $M_0$ es adecuado. Veamos ahora el modelo $M_1$.
+
+```{r D1}
+Y = new_data$enf_sist_nervioso
+lnN = log(new_data$total_muertes)
+
+b1 = m_enf_sist_nervioso1$coefficients$fixed
+a1 = m_enf_sist_nervioso1$sigma
+u1 = rep(m_enf_sist_nervioso1$coefficients$random$pais, each = 30)
+X1 <- m_enf_sist_nervioso1$data %>% dplyr::select(idh, año, año2, año3) %>% cbind(1, .) %>%
+      as.matrix()
+colnames(X1)[1] = "intercept"
+eta1 = lnN + X1 %*% b1 + u1
+
+D1 = 2*(Y%*%(log(Y)-eta1)-(1/a1 + Y)%*%log((1+a1*Y)/(1+a1*exp(eta1))))
+D1
+```
+
+y el p-valor $P(D_1 \ge 439.9582)$ (con $D_1 \sim \chi^2(1330)$) es
+
+```{r p-valor 1}
+pchisq(D1, df = 1330, lower.tail = FALSE)
+```
+
+lo que sugiere que el modelo $M_1$ es adecuado. Por último, comparemos ambos modelos con el estadístico $\Delta D = D_0 - D_1$, que sigue la distribución $\Delta D \sim \chi^2(1)$
+
+```{r estadistico}
+DeltaD = D0 - D1
+DeltaD
+```
+
+y el p-valor $P(\Delta D \ge 0.3114133)$ (con $\Delta D \sim \chi^2(1)$) es
+
+```{r p-valor estadistico}
+pchisq(DeltaD, df = 1, lower.tail = FALSE)
+```
+
+Como el estadístico no se encuentra en la región crítica, elegiremos el modelo $M_0$ por ser más simple.
+
 ```{r}
-residuales = m_enf_sist_nervioso$residuals
-sd(residuales[,2])
+residuales = m_enf_sist_nervioso2$residuals
+residuales
 ```
 
+```{r}
+u = m_enf_sist_nervioso1$coefficients$random$pais
+u
+sd(u)
+mean(u)
+```
 
+```{r}
+plot(density(u))
+shapiro.test(u)
+```
+
+#### Ajuste del modelo para enfermedades del sistema digestivo
 
 ```{r modelo NBMM enf_sist_digestivo, echo=TRUE, warning = FALSE, message = FALSE}
 m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + año + año2 + año3 + offset(log(N)),
@@ -1211,21 +1310,11 @@ m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + año + año2 + año3 +
 summary(m_enf_sist_digestivo)
 ```
 
+#### Ajuste del modelo para trastornos del embarazo
+
 ```{r modelo NBMM trastornos_embarazo, echo=TRUE, warning = FALSE, message = FALSE}
 m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + año + año2 + año3 + offset(log(N)),
                               random = ~ 1 | pais, data = new_data)
 
 summary(m_trastornos_embarazo)
-```
-
-```{r}
-u = m_enf_sist_nervioso$coefficients$random$pais
-sd(u)
-```
-
-```{r}
-u = m_trastornos_embarazo$coefficients$random$pais
-u
-plot(density(u))
-shapiro.test(u)
 ```
