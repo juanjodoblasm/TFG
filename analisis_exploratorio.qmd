@@ -1152,27 +1152,27 @@ De este modo, si los conteos presentan una variabilidad superior a la que asumir
 
 ### Descripción del NBMM
 
-Basándonos en la motivación anterior, proponemos un modelo Binomial Negativo Mixto
+Ajustaremos un modelo a los datos sobre muertes causadas por enfermedades del sistema nervioso. Para analizar el resto de causas se procede de manera análoga. Basándonos en la motivación anterior, proponemos un modelo Binomial Negativo Mixto
 (NBMM) que, además de corregir la sobredispersión, incorpora un \textit{offset} para tener
 en cuenta el total anual de muertes en cada país y un efecto aleatorio que capture
-la heterogeneidad intrínseca entre países, además de un spline cúbico para capturar el efecto del tiempo. La formulación es la siguiente:
+la heterogeneidad intrínseca entre países, además de un polinomio cúbico para capturar el efecto del tiempo. La formulación es la siguiente:
 
 $$
-\log(\mu_{ijk}) = \log\bigl(N_{ij}\bigr) + \beta_{0k} + \beta_{1k}x_{ij} + \beta_{2k}t_j + \beta_{3k}t_j^2 + \beta_{4k}t_j^3 + u_i,
+\log(\mu_{ij}) = \log\bigl(N_{ij}\bigr) + \beta_{0} + \beta_{1}x_{ij} + \beta_{2}t_j + \beta_{3}t_j^2 + \beta_{4}t_j^3 + u_i,
 $$
 
 donde 
 
--   $\mu_{ijk}$ es la media de muertes por la enfermedad $k$ en el país $i$ en el año $j$.
+-   $\mu_{ij}$ es la media de muertes causadas por enfermedades del sistema nervioso en el país $i$ en el año $j$.
 -   $N_{ij}$ es el total de muertes en el país $i$ en el año $j$.
 -   $x_{ij}$ es el IDH del país $i$ en el año $j$.
 -   $t_j$ es el año.
--   $\beta_{0k}$, $\beta_{1k}$, $\beta_{2k}$, $\beta_{3k}$, $\beta_{4k}$ son los coeficientes a estimar.
+-   $\beta_{0}$, $\beta_{1}$, $\beta_{2}$, $\beta_{3}$, $\beta_{4}$ son los coeficientes a estimar.
 -   $u_i \sim \mathcal{N}(0,\sigma^2)$ es el efecto aleatorio país.
 
 ### Estimación del modelo
 
-Para estimar el modelo, primero vamos a reescalar nuestra variable año de forma que caiga en el intervalo $[0,1]$ para evitar posibles errores por *overflow*. Además, al querer un spline cúbico necesitamos las variables año al cuadrado y año al cubo.
+Para estimar el modelo, primero vamos a reescalar nuestra variable año de forma que caiga en el intervalo $[0,1]$ para evitar posibles errores por *overflow*. Además, al querer un polinomio cúbico necesitamos las variables año al cuadrado y año al cubo.
 
 ```{r polinomio año}
 new_data <- new_data %>% 
@@ -1184,9 +1184,9 @@ new_data <- new_data %>%
   ungroup()
 ```
 
-Realizaremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH.
+` #Realizaremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH. `
 
-#### Ajuste del modelo para enfermedades del sistema nervioso
+Ahora procedamos a realizar el ajuste de nuestro modelo.
 
 ```{r modelo 1 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
 N = new_data$total_muertes # offset
@@ -1239,7 +1239,7 @@ D0 = 2*(Y%*%(log(Y)-eta0)-(1/a0 + Y)%*%log((1+a0*Y)/(1+a0*exp(eta0))))
 D0
 ```
 
-y el p-valor $P(D_0 \ge 440.2696)$ (con $D_0 \sim \chi^2(1331)$) es
+y el p-valor $P(\chi^2_{1331} \ge D_0)$ es
 
 ```{r p-valor 0}
 pchisq(D0, df = 1331, lower.tail = FALSE)
@@ -1263,7 +1263,7 @@ D1 = 2*(Y%*%(log(Y)-eta1)-(1/a1 + Y)%*%log((1+a1*Y)/(1+a1*exp(eta1))))
 D1
 ```
 
-y el p-valor $P(D_1 \ge 439.9582)$ (con $D_1 \sim \chi^2(1330)$) es
+y el p-valor $P(\chi^2_{1330} \ge D_1)$ es
 
 ```{r p-valor 1}
 pchisq(D1, df = 1330, lower.tail = FALSE)
@@ -1276,7 +1276,7 @@ DeltaD = D0 - D1
 DeltaD
 ```
 
-y el p-valor $P(\Delta D \ge 0.3114133)$ (con $\Delta D \sim \chi^2(1)$) es
+y el p-valor $P(\chi^2_{1} \ge \Delta D)$ es
 
 ```{r p-valor estadistico}
 pchisq(DeltaD, df = 1, lower.tail = FALSE)
@@ -1284,37 +1284,84 @@ pchisq(DeltaD, df = 1, lower.tail = FALSE)
 
 Como el estadístico no se encuentra en la región crítica, elegiremos el modelo $M_0$ por ser más simple.
 
-```{r}
-residuales = m_enf_sist_nervioso2$residuals
-residuales
+### Análisis de los residuales
+
+Vamos a analizar los residuales del modelo ajustado. Primero, extraemos los residuales del modelo y los organizamos en un dataframe junto con el año, el país y el grupo de IDH.
+
+```{r residuales}
+residuales = m_enf_sist_nervioso0$residuals
+
+analisis_residuales = data.frame(residuales = residuales[,2], año = new_data$año, pais = new_data$pais,
+                                 grupo_idh = new_data$idh)
+
+cuartiles <- new_data %>% 
+  dplyr::select(idh) %>% 
+  pull %>% 
+  quantile(., probs = c(0.25, 0.5, 0.75))
+
+# Clasificar los países en función de los cuartiles del IDH
+analisis_residuales <- analisis_residuales %>%
+  mutate(grupo_idh = case_when(grupo_idh <= cuartiles_medianas[1] ~ "Bajo", 
+                               grupo_idh <= cuartiles_medianas[2] ~ "Medio Bajo", 
+                               grupo_idh <= cuartiles_medianas[3] ~ "Medio Alto", 
+                               TRUE ~ "Alto")) %>% 
+  mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto"))) %>% 
+  mutate(año = año*29 + 1990) # Reescalamos el año para que sea el original
 ```
 
-```{r}
+Veamos cómo se distribuyen según el año:
+
+``` {r boxplot resiudales año}
+analisis_residuales %>% 
+  dplyr::select(c(residuales, año)) %>%
+  mutate(año = factor(año)) %>% 
+  ggplot(aes(x = año, y = residuales)) +
+  geom_boxplot(width = 0.75, color = "black") +
+  theme_minimal() +
+  labs(x = "Año", y = "Residuales") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+Ahora según el nivel de IDH:
+
+``` {r boxplot resiudales idh}
+analisis_residuales %>% 
+  dplyr::select(c(residuales, grupo_idh)) %>%
+  ggplot(aes(x = grupo_idh, y = residuales)) +
+  geom_boxplot(width = 0.3, color = c("darkred", "lightcoral", "#4A90E2", "darkblue")) +
+  theme_minimal() +
+  labs(x = "Nivel de IDH", y = "Residuales") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+```
+
+Y, por último, según el país:
+
+``` {r boxplot resiudales pais}
+analisis_residuales %>% 
+  dplyr::select(c(residuales, pais)) %>%
+  ggplot(aes(x = pais, y = residuales)) +
+  geom_boxplot(width = 0.8, color = "black") +
+  theme_minimal() +
+  labs(x = "País", y = "Residuales") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r include=FALSE}
+
+car::qqPlot(residuales[,1])
+
+shapiro.test(residuales[,1])
+```
+
+```{r include=FALSE}
 u = m_enf_sist_nervioso1$coefficients$random$pais
 u
 sd(u)
 mean(u)
 ```
 
-```{r}
+```{r include=FALSE}
 plot(density(u))
 shapiro.test(u)
 ```
 
-#### Ajuste del modelo para enfermedades del sistema digestivo
-
-```{r modelo NBMM enf_sist_digestivo, echo=TRUE, warning = FALSE, message = FALSE}
-m_enf_sist_digestivo = glmm.nb(enf_sist_digestivo ~ idh + año + año2 + año3 + offset(log(N)),
-                              random = ~ 1 | pais, data = new_data)
-
-summary(m_enf_sist_digestivo)
-```
-
-#### Ajuste del modelo para trastornos del embarazo
-
-```{r modelo NBMM trastornos_embarazo, echo=TRUE, warning = FALSE, message = FALSE}
-m_trastornos_embarazo = glmm.nb(trastornos_embarazo ~ idh + año + año2 + año3 + offset(log(N)),
-                              random = ~ 1 | pais, data = new_data)
-
-summary(m_trastornos_embarazo)
-```
