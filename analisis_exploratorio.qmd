@@ -1,6 +1,7 @@
 ---
-title: "Análisis exploratorio"
+title: "Conteo de muertes en Europa"
 author: Juanjo Doblas
+lang: es-ES
 format: 
   html:
     toc: true
@@ -12,15 +13,27 @@ execute:
 embed-resources: true
 editor_options: 
   chunk_output_type: inline
+bibliography: bibliografia.bib
+csl: ieee.csl
 ---
 
-## 1 - Introducción
+## 1 - Datos de mortalidad en Europa
 
-En este documento realizaremos un análisis exploratorio de los datos que se encuentran en el archivo `causas_muerte.xls`.
+En este documento realizaremos un análisis exploratorio de los datos que hemos recopilado en el archivo `causas_muerte.xls`, a partir de información obtenida del [sitio web de la Organización Mundial de la Salud (OMS)](https://platform.who.int/mortality/themes/theme-details/MDB/all-causes). El código del análisis se puede encontrar en el repositorio de Github [@juanjodoblasm]. La tabla de datos contiene información anual sobre las principales causas de muerte en $200$ países del mundo desde el año 1990 hasta el 2019, así como algunas covariables.
 
-Esta tabla de datos contiene información sobre las causas de muerte en la mayoría de países del mundo desde el año 1990 hasta el 2019, así como algunas covariables.
+En el ámbito de la salud pública, resulta esencial identificar patrones y tendencias en el número de muertes por diferentes causas en Europa. El análisis de los conteos de defunciones, según la clasificación de la OMS, proporciona un soporte técnico para el diseño de políticas de prevención y la asignación eficiente de recursos. A grandes rasgos, el análisis de estos datos composicionales (número de muertes o tasa de mortalidad respecto al total de fallecimientos) tiene las siguientes motivaciones:
 
-Primero de todo cargaremos las librerías necesarias para realizar el análisis.
+-   **Identificar grupos de riesgo o poblaciones vulnerables:** saber en qué países o regiones determinadas enfermedades cobran mayor relevancia ayuda a planificar intervenciones médicas y estrategias de seguimiento.
+
+-   **Asignar recursos médicos de manera eficiente:** la detección de tendencias al alza en enfermedades concretas permite focalizar los esfuerzos en equipamiento, personal sanitario o infraestructuras clave.
+
+-   **Planificar campañas de prevención y programas de vacunación:** conocer las causas de mortalidad predominantes respalda la toma de decisiones sobre el contenido y la localización de campañas informativas, además de orientar políticas de vacunación o control de epidemias.
+
+-   **Evaluar la heterogeneidad geográfica y temporal:** los datos comprenden múltiples años y diversos países, lo que exige modelos estadísticos que incorporen efectos mixtos y permitan capturar las diferencias intrínsecas entre regiones.
+
+Con esta perspectiva, el número de muertes debe modelizarse de manera más precisa a través de modelos lineales generalizados mixtos, como la regresión binomial negativa con efecto aleatorio por país. La metodología propuesta en este capítulo busca, en última instancia, la comprensión de los patrones de mortalidad en Europa y ofrecer evidencia útil para el diseño de políticas de salud, el control de enfermedades y la asignación de recursos en programas epidemiológicos y sanitarios a nivel comunitario.
+
+### 1.1 - Descripción del conjunto de datos
 
 ```{r librerias, include=FALSE}
 # 1
@@ -48,9 +61,11 @@ library(ggpubr)
 # 8
 library(NBZIMM)
 library(pscl)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(dplyr)
 ```
-
-Ahora, carguemos nuestra base de datos y presentemos un resumen.
 
 ```{r dataset, warning=FALSE}
 data <- read_excel("causas_muerte.xls") %>% 
@@ -59,57 +74,35 @@ data <- read_excel("causas_muerte.xls") %>%
   mutate(idh = idh*100) %>% 
   # Creamos una variable con el total de muertes
   rowwise() %>%  mutate(total_muertes = sum(c_across(meningitis:hepatitis_aguda)), .after = hepatitis_aguda) %>% ungroup()
-
-data %>% glimpse
 ```
 
-### 1.1 - Descripción de las variables
+En la @tbl-variables mostramos las variables utilizadas en el análisis.
 
-Realicemos una pequeña descripción de cada variable:
+::: {#tbl-variables tbl-cap="Variables del conjunto de datos" tbl-cap-location="bottom"}
+| **Nombre de la variable** | **Descripción de la variable** |
+|:--------------------------|:--------------------------------------------|
+| ***pais*** | país del que proceden los datos. En total recoge $200$ países. |
+| ***codigo_Pais*** | código de tres letras para los nombres de los países según la norma ISO 3166-1 alfa-3. |
+| ***año*** | año en el que se recogen los datos. Todos los países tienen datos en todos los años. |
+| ***poblacion*** | número de habitantes. |
+| ***total_muertes*** | número total de muertes. Calculado como la suma de todas las causas de muerte. |
+| ***pib*** | producto interior bruto en millones de dólares. Expresa el valor monetario de la producción de bienes y servicios de demanda final. |
+| ***idh*** | índice de desarrollo humano. Se calcula en base a la esperanza de vida, el nivel de educación y el ingreso per cápita. |
+| ***esperanza_vida_m*** | esperanza de vida de las mujeres en años. |
+| ***esperanza_vida_h*** | esperanza de vida de los hombres en años. |
+| ***esperanza_vida*** | esperanza de vida de la población en años. |
+| ***emisiones_CO2*** | cantidad de CO$_2$ emitido en millones de toneladas. |
+| ***emisiones_CO2_PIB*** | cantidad de CO$_2$ emitido por cada mil dólares de PIB en kilogramos. |
+| ***emisiones_CO2_per_capita*** | cantidad de CO$_2$ emitido per cápita en toneladas. |
+:::
 
--   *pais*: país del que proceden los datos. Veamos los países que se recogen.
+Además de las variables recogidas en la tabla anterior, disponemos de la desagregación del total de defunciones en función de distintas enfermedades. Específicamente, las variables *meningitis*, *alzheimer*, *parkinson*, *def_nutricionales*, *malaria*, *ahogo*, *violencia_inter*, *trastornos_maternos*, *VIH*, *trastornos_cons_drogas*, *tuberculosis*, *enf_cardiovasculares*, *infecciones_respi*, *trastornos_neonatales*, *trastornos_Cons_alcohol*, *autolesiones*, *exp_fuer_naturaleza*, *enf_diarreicas*, *exp_amb_temperatura*, *neoplasias*, *conflicto_terrorismo*, *diabetes_mellitus*, *enfermedad_crónica*, *envenenamientos*, *desnutrición_energetica*, *lesiones_carretera*, *enfermedades_cronicas*, *cirrosis_crónicas*, *enfermedades_digestivas*, *fuego_calientes* y *hepatitis_aguda* registran el número de muertes atribuidas a la causa correspondiente indicada en el nombre de cada variable.
 
-```{r paises}
-data[, "pais"] %>% unique
-```
+## 2 - Procesamiento de datos para el análisis
 
--   *codigo_Pais*: código de 3 letras para los nombres de los países según la norma ISO 3166-1 alfa-3.
+En este apartado mostramos las transformaciones realizadas a la base de datos con el objetivo de mejorar el posterior análisis. Estas incluyen la reducción de países, la agrupación de causas de muerte y la eliminación de algunas covariables.
 
--   *año*: año en el que se recogen los datos. Veamos que no falta ningún año en ningún país desde 1990 hasta 2019. Lo veremos en la siguiente tabla que recoge el número de muestras, y por tanto de países, por cada año.
-
-```{r paises años}
-data[, "año"] %>% table
-```
-
--   *poblacion*: número de habitantes de cada país en cada año.
-
-Las variables desde la columna *meningitis* hasta *hepatitis_aguda* recogen el número de muertes por la causa que da nombre a la variable en cada país y cada año.
-
--   *total_muertes*: Es el número de muertes totales que ha habido en cada año en cada país. Es la suma de todas las causas de muerte.
-
--   *pib*: producto interior bruto en millones de dólares. Expresa el valor monetario de la producción de bienes y servicios de demanda final.
-
--   *idh*: índice de desarrollo humano. Se calcula en base a la esperanza de vida, el nivel de educación y el ingreso per cápita.
-
--   *esperanza_vida_m*: esperanza de vida de las mujeres en años.
-
--   *esperanza_vida_h*: esperanza de vida de los hombres en años.
-
--   *esperanza_vida*: esperanza de vida de la población en años.
-
--   *emisiones_CO2*: cantidad de CO2 emitido en millones de toneladas.
-
--   *emisiones_CO2_PIB*: cantidad de CO2 emitido por cada 1000 dólares de PIB en kilogramos.
-
--   *emisiones_CO2_per_capita*: cantidad de CO2 emitido per cápita en toneladas.
-
-## 2 - Transformación de datos
-
-En este apartado realizaremos una transformación a la base de datos con el objetivo de simplificar el posterior análisis. Estas transformaciones incluyen la reducción de países, la agrupación de causas de muerte y la eliminación de algunas covariables
-
-### 2.1 - Reducción de países
-
-Primero de todo, nos restringiremos a los datos que nos proporcionan los países europeos para así reducir el número de individuos. Filtremos los países de este continente en nuestra base de datos.
+Primero de todo, nos restringiremos a los datos que nos proporcionan los países europeos para así reducir el número de unidades muestrales y centrarnos en el objetivo del trabajo.
 
 ```{r datos europa}
 # Lista de países de Europa
@@ -128,29 +121,70 @@ paises_eu <- c("Albania", "Andorra", "Armenia", "Austria", "Azerbaiyán",
 data_eu <- data %>% filter(pais %in% paises_eu)
 ```
 
-### 2.2 - Agrupación de causas de muerte
+Ahora, veamos en la @fig-distribucion_muertes la distribución temporal de la cantidad de defunciones por cada causa mediante gráficos de cajas, ordenados de mayor a menor cantidad de fallecimientos. Es decir, cada caja tiene como datos las muertes totales por esa causa en cada año.
 
-Veamos la distribución temporal de la cantidad de defunciones de cada causa mediante gráficos de cajas, ordenados de mayor a menor cantidad de muertes.
+::: {#fig-distribucion_muertes fig-cap="Boxplots del conteo anual de muertes totales, en escala logarítmica y ordenados en orden descendente según la mediana" fig-cap-location="bottom"}
+```{r distribucion muertes, fig.width=7.5, fig.height=6}
+colores_enf_agrup <- c(
+  enf_infec_paras          = "#F58231",
+  enf_sist_nervioso        = "#4363D8",
+  enf_metabolicas          = "#FFE119",
+  causas_externas          = "#911EB4",
+  trastornos_embarazo      = "#808000",
+  trastornos_mentales      = "#F032E6",
+  enf_cardiovasculares     = "#E6194B",
+  infecciones_respi        = "#42D4F4",
+  enf_sist_digestivo       = "#9A6324",
+  neoplasias               = "#3CB44B",
+  enf_cronicas             = "#BFEF45"
+)
 
-```{r distribucion muertes}
 total_muertes_año <- data_eu %>%
   dplyr::select(año, meningitis:hepatitis_aguda) %>%
   group_by(año) %>%
   summarise(across(everything(), ~ sum(.)))
 
 total_muertes_año %>% 
-  pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
-  mutate(cm = factor(causa_muerte), muerte = muerte + 1) %>% 
-  ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte)) +
+  pivot_longer(cols = -año, names_to = "causa", values_to = "muertes") %>%
+  mutate(muertes = muertes + 1,
+         grupo = case_when(
+           causa %in% c("meningitis", "malaria", "VIH", "tuberculosis") ~ "enf_infec_paras",
+           causa %in% c("alzheimer", "parkinson") ~ "enf_sist_nervioso",
+           causa %in% c("def_nutricionales", "diabetes_mellitus",
+                        "desnutrición_energetica") ~ "enf_metabolicas",
+           causa %in% c("ahogo", "violencia_inter", "autolesiones", "exp_fuer_naturaleza",
+                        "conflicto_terrorismo", "lesiones_carretera", "exp_amb_temperatura",
+                        "envenenamientos", "fuego_calientes") ~ "causas_externas",
+           causa %in% c("trastornos_maternos", "trastornos_neonatales") ~ "trastornos_embarazo",
+           causa %in% c("trastornos_cons_drogas", "trastornos_Cons_alcohol") ~ "trastornos_mentales",
+           causa == "enf_cardiovasculares" ~ "enf_cardiovasculares",
+           causa == "infecciones_respi" ~ "infecciones_respi",
+           causa %in% c("enf_diarreicas", "cirrosis_crónicas", "enfermedades_digestivas",
+                        "hepatitis_aguda") ~ "enf_sist_digestivo",
+           causa == "neoplasias" ~ "neoplasias",
+           causa %in% c("enfermedad_crónica", "enfermedades_cronicas") ~ "enf_cronicas",
+                           ),
+         grupo = factor(grupo, levels = c("enf_infec_paras", "enf_sist_nervioso", "enf_metabolicas",
+                                          "causas_externas", "trastornos_embarazo", 
+                                          "trastornos_mentales", "enf_cardiovasculares",
+                                          "infecciones_respi", "enf_sist_digestivo", "neoplasias",
+                                          "enf_cronicas")),
+         ) %>% 
+  ggplot(aes(x = fct_reorder(causa, -muertes), y = muertes, color = grupo)) +
   scale_y_log10() +
-  geom_boxplot(width = 0.75, color = "black") +
+  geom_boxplot(width = 0.75) +
+  scale_color_manual(values = colores_enf_agrup, name = "Grupo de la causa") + 
   theme_minimal() +
   labs(x = "Causa de muerte", y = "Número de muertes") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
 ```
+:::
 
-A continuación, una tabla con el número de defunciones totales por cada causa, también ordenada de mayor a menor cantidad de muertes.
+En este gráfico podemos ver grandes diferencias en el conteo de las causas. Esto se puede apreciar gracias a la escala logarítmica. Mientras que los conteos de defunciones por malaria se encuentran alrededor de $10$, los conteos de muertes por enfermedades cardiovasculares se encuentran alrededor de medio millón. Los colores de las cajas determinan en qué agrupación se encuentran.
 
+En la @fig-tabla_muertes se muestra el número de defunciones totales por cada causa de muerte, también ordenada de mayor a menor cantidad de fallecimientos.
+
+::: {#fig-tabla_muertes fig-cap="Conteo de muertes totales ordenado en orden descendente" fig-cap-location="bottom"}
 ```{r tabla muertes, fig.width=8}
 tabla_total_muertes <- total_muertes_año %>%
   summarise(across(meningitis:hepatitis_aguda, sum)) %>%
@@ -160,32 +194,31 @@ tabla_total_muertes <- total_muertes_año %>%
 
 grid.arrange(tabla_total_muertes[1:16], tabla_total_muertes[c(1, 17:32)], ncol = 2)
 ```
+:::
 
-Como podemos ver, hay algunas causas de muerte que apenas causan impacto. Por ello, con el objetivo de reducir dimensionalidad, vamos a agruparlas siguiendo el criterio de la OMS en [este enlace](https://icd.who.int/browse/2024-01/mms/en). Los grupos que nos quedan son los siguientes:
+Aquí podemos ver el conteo exacto de cada causa durante todo el intervalo temporal y se puede apreciar con más claridad que hay algunas causas que apenas causan impacto. Observemos que en este tiempo la malaria solo registra $228$ defunciones, mientras que enfermedades cardiovasculares registra más de cien millones. Por ello, con el objetivo de reducir dimensionalidad y manejar adecuadamente estas diferencias, vamos a agrupar las causas siguiendo el criterio de la OMS en [este enlace](https://icd.who.int/browse/2024-01/mms/en). Los grupos que nos quedan son los siguientes:
 
--   Enfermedades infecciosas o parasitarias (*enf_infec_paras*). En este grupo incluimos *meningitis*, *malaria*, *VIH* y *tuberculosis*.
+-   Enfermedades infecciosas o parasitarias (*enf_infec_paras*). En este grupo incluimos *meningitis*, *malaria*, *VIH* y *tuberculosis*; color naranja en la @fig-distribucion_muertes.
 
--   Enfermedades del sistema nervioso (*enf_sist_nervioso*). En este grupo incluimos *alzheimer* y *parkinson*.
+-   Enfermedades del sistema nervioso (*enf_sist_nervioso*). En este grupo incluimos *alzheimer* y *parkinson*; color azul en la @fig-distribucion_muertes.
 
--   Enfermedades endocrinas, nutricionales o metabólicas (*enf_metabolicas*). En este grupo incluimos *def_nutricionales*, *diabetes_mellitus* y *desnutrición_energetica*.
+-   Enfermedades endocrinas, nutricionales o metabólicas (*enf_metabolicas*). En este grupo incluimos *def_nutricionales*, *diabetes_mellitus* y *desnutrición_energetica*; color amarillo en la @fig-distribucion_muertes.
 
--   Causas externas de morbilidad o mortalidad, lesiones y envenenamientos (*causas_externas*). En este grupo incluimos *ahogo*, *violencia_inter*, *autolesiones*, *exp_fuer_naturaleza*, *conflicto_terrorismo*, *lesiones_carretera*, *exp_amb_temperatura*, *envenenamientos* y *fuego_calientes*.
+-   Causas externas de morbilidad o mortalidad, lesiones y envenenamientos (*causas_externas*). En este grupo incluimos *ahogo*, *violencia_inter*, *autolesiones*, *exp_fuer_naturaleza*, *conflicto_terrorismo*, *lesiones_carretera*, *exp_amb_temperatura*, *envenenamientos* y *fuego_calientes*; color púrpura en la @fig-distribucion_muertes.
 
--   Causas relacionadas con el embarazo, parto o puerperio (en la madre) y afecciones en el periodo perinatal (en el hijo) (*trastornos_embarazo*). En este grupo incluimos *trastornos_maternos* y *trastornos_neonatales*.
+-   Causas relacionadas con el embarazo, parto o puerperio (en la madre) y afecciones en el periodo perinatal (en el hijo) (*trastornos_embarazo*). En este grupo incluimos *trastornos_maternos* y *trastornos_neonatales*; color oliva en la @fig-distribucion_muertes.
 
--   Trastornos mentales, del comportamiento o del desarrollo neurológico (*trastornos_mentales*). En este grupo incluimos *trastornos_cons_drogas* y *trastornos_Cons_alcohol*.
+-   Trastornos mentales, del comportamiento o del desarrollo neurológico (*trastornos_mentales*). En este grupo incluimos *trastornos_cons_drogas* y *trastornos_Cons_alcohol*; color magenta en la @fig-distribucion_muertes.
 
--   Enfermedades del sistema circulatorio (*enf_cardiovasculares*). En este grupo incluimos *enf_cardiovasculares*.
+-   Enfermedades del sistema circulatorio (*enf_cardiovasculares*). En este grupo incluimos *enf_cardiovasculares*; color rojo en la @fig-distribucion_muertes.
 
--   Enfermedades del sistema respiratorio (*infecciones_respi*). En este grupo incluimos *infecciones_respi*.
+-   Enfermedades del sistema respiratorio (*infecciones_respi*). En este grupo incluimos *infecciones_respi*; color cian en la @fig-distribucion_muertes.
 
--   Enfermedades del sistema digestivo (*enf_sist_digestivo*). En este grupo incluimos *enf_diarreicas*, *cirrosis_crónicas*, *enfermedades_digestivas* y *hepatitis_aguda*.
+-   Enfermedades del sistema digestivo (*enf_sist_digestivo*). En este grupo incluimos *enf_diarreicas*, *cirrosis_crónicas*, *enfermedades_digestivas* y *hepatitis_aguda*; color marrón en la @fig-distribucion_muertes.
 
--   Neoplasias (*neoplasias*). En este grupo incluimos *neoplasias*.
+-   Neoplasias (*neoplasias*). En este grupo incluimos *neoplasias*; color verde en la @fig-distribucion_muertes.
 
--   Enfermedades crónicas (*enf_cronicas*). En este grupo incluimos *enfermedad_crónica* y *enfermedades_cronicas*.
-
-Creemos la nueva base de datos con las causas de muerte agrupadas.
+-   Enfermedades crónicas (*enf_cronicas*). En este grupo incluimos *enfermedad_crónica* y *enfermedades_cronicas*; color lima en la @fig-distribucion_muertes.
 
 ```{r datos causas agrupadas}
 data_eu_agrupado <- data_eu %>%
@@ -194,9 +227,10 @@ data_eu_agrupado <- data_eu %>%
     enf_sist_nervioso = rowSums(dplyr::select(., alzheimer, parkinson)),
     enf_metabolicas = rowSums(dplyr::select(., def_nutricionales, diabetes_mellitus, 
                                      desnutrición_energetica)),
-    causas_externas = rowSums(dplyr::select(., ahogo, violencia_inter, autolesiones, exp_fuer_naturaleza,
-                                     conflicto_terrorismo, lesiones_carretera, exp_amb_temperatura,
-                                     envenenamientos, fuego_calientes)),
+    causas_externas = rowSums(dplyr::select(., ahogo, violencia_inter, autolesiones,
+                                            exp_fuer_naturaleza, conflicto_terrorismo,
+                                            lesiones_carretera, exp_amb_temperatura,
+                                            envenenamientos, fuego_calientes)),
     trastornos_embarazo = rowSums(dplyr::select(., trastornos_maternos, trastornos_neonatales)),
     trastornos_mentales = rowSums(dplyr::select(., trastornos_cons_drogas, trastornos_Cons_alcohol)),
     enf_sist_digestivo = rowSums(dplyr::select(., enf_diarreicas, cirrosis_crónicas,
@@ -217,8 +251,7 @@ data_eu_agrupado <- data_eu %>%
   relocate(neoplasias, .after = enf_sist_digestivo)
 ```
 
-Veamos de nuevo la distribución temporal de la cantidad de defunciones de cada causa, ahora con la nueva agrupación.
-
+::: {#fig-muertestotales fig-cap="Boxplots del conteo anual de muertes totales agrupadas y ordenadas en orden descendente según la mediana" fig-cap-location="bottom"}
 ```{r distribucion muertes agrupadas}
 total_muertes_agrupadas_año <- data_eu_agrupado %>%
   dplyr::select(año, enf_infec_paras:enf_cronicas) %>%
@@ -228,71 +261,101 @@ total_muertes_agrupadas_año <- data_eu_agrupado %>%
 total_muertes_agrupadas_año %>% 
   pivot_longer(cols = -año, names_to = "causa_muerte", values_to = "muerte") %>%
   mutate(cm = factor(causa_muerte)) %>% 
-  ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte)) +
-  geom_boxplot(width = 0.5, color = "black") +
+  ggplot(aes(x = fct_reorder(cm, -muerte), y = muerte, color = cm)) +
+  geom_boxplot(width = 0.5) +
+  scale_color_manual(values = colores_enf_agrup) + 
   scale_y_log10() +
   theme_minimal() +
   labs(x = "Causa de muerte", y = "Número de muertes") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
 ```
+:::
 
-A continuación, de nuevo, una tabla con el número de defunciones totales por cada causa.
+Una vez agrupadas las causas de muerte, en la @fig-muertestotales se muestran los boxplots resultantes de los conteos de muertes totales. De nuevo, apreciamos grandes diferencias entre la causa con más conteos (enfermedades cardiovasculares) y la causa con menos conteos (trastornos del embarazo). Sin embargo, esta última ya tiene un conteo mayor que en el anterior gráfico, con decenas de miles de defunciones. Y con este agrupamiento, la @fig-muertes muestra el número total de fallecimientos por cada causa de la nueva agrupación.
 
-```{r tabla muertes agrupadas}
+::: {#fig-muertes fig-cap="Conteo de muertes totales ordenado en orden descendente." fig-cap-location="bottom"}
+```{r tabla muertes agrupadas, fig.width=7}
 tabla_total_muertes_agrupadas <- total_muertes_agrupadas_año %>%
   summarise(across(enf_infec_paras:enf_cronicas, sum)) %>%
   pivot_longer(cols = everything(), names_to = "Causa", values_to = "Total_muertes") %>%
   arrange(desc(Total_muertes)) %>%
   tableGrob()
 
-grid.arrange(tabla_total_muertes_agrupadas, ncol = 1)
+grid.arrange(tabla_total_muertes_agrupadas[1:6], tabla_total_muertes_agrupadas[c(1, 7:12)], ncol = 2)
 ```
+:::
 
-### 2.3 - Eliminación de algunas covariables
+De nuevo, podemos ver el conteo exacto de cada causa ordenado de mayor a menor. Se aprecia que, tras la agrupación, la causa con menos muertes en todo este periodo ya supera el millón de casos, con lo que hemos reducido las diferencias.
 
-Recordemos que las covariables que tenemos son *población*, *pib*, *idh*, *esperanza_vida_m*, *esperanza_vida_h*, *esperanza_vida*, *emisiones_CO2*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita*. Sin embargo, notemos que nos proporcionan información redundante. El Índice de Desarrollo Humano se calcula a partir del PIB y de la esperanza de vida, así que nos podríamos deshacer de estas variables. Por otro lado, cuanta más población tenga un país, más emisiones de CO2 habrá, por lo que también podemos eliminar la variable *emisiones_CO2*. En efecto, podemos ver las altas correlaciones que tienen las variables entre sí en la siguiente matriz de correlaciones.
+Por último, recordemos que disponemos de las siguientes covariables: *poblacion*, *pib*, *idh*, *esperanza_vida_m*, *esperanza_vida_h*, *esperanza_vida*, *emisiones_CO_2*, *emisiones_CO_2_PIB* y *emisiones_CO_2_per_capita*. Estas variables aportan información descriptiva sobre las causas de muerte, aunque presentan redundancias: el IDH se calcula a partir del PIB y de la esperanza de vida, por lo que podríamos prescindir de ellas; y, como a mayor población suele corresponder un mayor nivel de emisiones de CO$_2$, tampoco es necesario incluir *emisiones_CO_2* como covariable. En efecto, podemos observar las elevadas correlaciones entre estas variables en la matriz mostrada en la @fig-matriz_correlaciones_covariables.
 
-```{r matriz correlaciones covariables}
+::: {#fig-matriz_correlaciones_covariables fig-cap="Matriz de correlaciones de las covariables. Tonos azules indican correlación positiva y tonos rojos correlación negativa." fig-cap-location="bottom"}
+```{r matriz correlaciones covariables, fig.width=7.5}
 data_eu_agrupado %>%
   dplyr::select(poblacion, pib:emisiones_CO2_per_capita) %>%
   cor() %>%
-  ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
-             title = "Matriz de correlaciones de las covariables")
+  ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"))
 ```
+:::
 
-Podemos ver efectivamente que *idh* está altamente correlacionado con las variables relacionadas con la esperanza de vida. También vemos una alta correlación entre *poblacion* y *emisiones_CO2*. Sin embargo, la correlación entre *idh* y *pib* no es tan alta, pero esto es debido a que el IDH se calcula a partir del logaritmo del PIB, por lo que no tienen alta correlación lineal.
+En la @fig-matriz_correlaciones_covariables podemos ver efectivamente que *idh* está altamente correlacionado con las variables relacionadas con la esperanza de vida. También vemos una alta correlación entre *poblacion* y *emisiones_CO2*. Sin embargo, la correlación entre *idh* y *pib* no es tan alta, pero esto es debido a que el IDH se calcula a partir del logaritmo del PIB, por lo que no tienen alta correlación lineal.
 
-De esta forma, dejaremos únicamente las covariables *poblacion*, *idh*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita* en la base de datos.
+De esta forma, consideraremos únicamente las covariables *poblacion*, *idh*, *emisiones_CO2_PIB* y *emisiones_CO2_per_capita* en la base de datos.
+
+Después de aplicar las transformaciones explicadas en esta sección, obtenemos la base de datos final con la que vamos a trabajar. En la @tbl-variables_nuevas mostramos los datos que nos ofrecen las cinco primeras mediciones de esta base de datos.
 
 ```{r eliminacion covariables}
 new_data <- data_eu_agrupado %>%
   dplyr::select(-starts_with("esperanza"), -emisiones_CO2,-pib)
-
-new_data %>% head(5) %>% glimpse %>% xtable()
 ```
+
+::: {#tbl-variables_nuevas tbl-cap="Base de datos final luego de aplicar el preprocesamiento explicado en esta sección." tbl-cap-location="bottom"}
+|      Nombre de la variable | 1       | 2       | 3       | 4       | 5       |
+|---------------------------:|:--------|:--------|:--------|:--------|:--------|
+|                     *pais* | Albania | Albania | Albania | Albania | Albania |
+|              *codigo_Pais* | ALB     | ALB     | ALB     | ALB     | ALB     |
+|                      *año* | 1990    | 1991    | 1992    | 1993    | 1994    |
+|                *poblacion* | 3295066 | 3302082 | 3303739 | 3300711 | 3293999 |
+|          *enf_infec_paras* | 154     | 158     | 149     | 139     | 126     |
+|        *enf_sist_nervioso* | 453     | 459     | 459     | 460     | 463     |
+|          *enf_metabolicas* | 172     | 189     | 192     | 194     | 192     |
+|          *causas_externas* | 893     | 979     | 987     | 963     | 949     |
+|      *trastornos_embarazo* | 897     | 887     | 870     | 858     | 847     |
+|      *trastornos_mentales* | 15      | 18      | 18      | 21      | 27      |
+|     *enf_cardiovasculares* | 6701    | 6903    | 6699    | 6480    | 6191    |
+|        *infecciones_respi* | 2140    | 2196    | 2104    | 1977    | 1795    |
+|       *enf_sist_digestivo* | 1054    | 1071    | 1038    | 997     | 945     |
+|               *neoplasias* | 2616    | 2698    | 2642    | 2586    | 2493    |
+|             *enf_cronicas* | 1247    | 1255    | 1200    | 1144    | 1064    |
+|            *total_muertes* | 16342   | 16813   | 16358   | 15819   | 15092   |
+|                      *idh* | 64.7    | 62.9    | 61.4    | 61.7    | 62.4    |
+|        *emisiones_CO2_PIB* | 0.42    | 0.39    | 0.23    | 0.20    | 0.19    |
+| *emisiones_CO2_per_capita* | 2.03    | 1.35    | 0.75    | 0.71    | 0.76    |
+:::
 
 ## 3 - Tratamiento de datos composicionales
 
-Las variables que nos dan información sobre las causas de muerte tienen naturaleza composicional. En efecto, todas las entradas son positivas, ya que son conteos de muertes; y la única información relevante en cada fila es la contenida en su vector de proporciones, ya que este nos da el porcentaje de muertes por cada causa.
+Las variables que nos dan información sobre las causas de fallecimiento tienen naturaleza composicional, ya que todas las entradas son positivas (son conteos de defunciones); y la única información relevante en cada fila es la relación entre las componentes, ya que esta nos da el porcentaje de muertes por cada causa.
 
-Antes de poder aplicar técnicas de análisis de datos composicionales hay que tratar los datos siguiendo los pasos siguientes:
-
-1.  Se sustituyen (*imputan*) los ceros.
-
-2.  Se transforman logarítmicamente los datos.
+Antes de poder aplicar técnicas de análisis de datos composicionales hay que pre-procesar los datos siguiendo los pasos explicados en [@LUBBE2021104248, @nbzimm], que son imputación de ceros y transformación logarítmica.
 
 ### 3.1 - Imputación de ceros
 
-Hay varias estrategias para imputar ceros. Primero, nos interesa saber cuantos conteos de ceros hay en cada variable. Lo vemos en la siguiente tabla:
+Hay varias estrategias para imputar ceros. Primero, nos interesa saber cuántos conteos de ceros hay en cada variable, es decir, en cuántas mediciones (país-año) no ha habido muertes por esa causa, estos conteos son mostrados en la @tbl-ceros.
 
 ```{r conteo ceros}
 causas_muerte <- new_data %>%
   dplyr::select(enf_infec_paras:enf_cronicas)
 
 tabla_ceros <- summarise(causas_muerte, across(everything(), ~ sum(. == 0)))
-
-tabla_ceros %>% glimpse
 ```
+
+::: {#tbl-ceros tbl-cap="Número de conteos iguales a cero para cada causa de fallecimiento" tbl-cap-location="bottom"}
+| **Nombre de la variable** | **Nº ceros** |
+|:--------------------------|:-------------|
+| *trastornos_embarazo*     | 26           |
+| *trastornos_mentales*     | 30           |
+:::
 
 La siguiente salida nos da el porcentaje de ceros:
 
@@ -300,39 +363,82 @@ La siguiente salida nos da el porcentaje de ceros:
 100*sum(tabla_ceros) / (nrow(causas_muerte)*ncol(causas_muerte))
 ```
 
-Como el porcentaje de ceros es menor a $10\%$, los sustituiremos por $0,65$.
+En total hay $56$ ceros, que de un total de $15180$ entradas, supone un $0.3689\%$. Solo se muestra trastornos del embarazo y mentales, porque el resto de las causas analizadas no presenta conteos iguales a cero. Como el porcentaje es menor a $10\%$, seguimos el método más sencillo que consiste en sustituir los ceros por una cantidad fija de $0,65$ tal como lo sugieren en [@LUBBE2021104248].
 
 ### 3.2 - Transformación CLR
 
-Utilizaremos la transformación logarítmica centrada, que consiste en dividir cada entrada por la media geométrica de la fila y aplicarle un logaritmo.
+Recordemos que un vector de datos composicionales $\mathbf{x} = (x_1, \ldots, x_n)$ tiene componentes positivas y suma un total constante. Por lo tanto, estos datos no viven en todo $\mathbb{R}^n$, sino en un subespacio restringido conocido como el simplex: $$
+\mathcal{S}^n = \left\{(x_1, \ldots, x_n)\in\mathbb{R}^n \middle| \sum_{i=1}^nx_i = \kappa;\; x_i > 0,\; \forall i = 1, \ldots, n\right\}.
+$$ Esta restricción implica que las componentes no son independientes entre sí —un aumento en una parte debe compensarse con una disminución en otra— y esto viola supuestos básicos como la independencia o la homocedasticidad que subyacen a técnicas como la regresión lineal u otras basadas en la estadística clásica.
+
+Para solventar este problema, podemos aplicar un isomorfismo entre el símplex y un espacio euclídeo tradicional. Hay tres isomorfismos bien caracterizados que transforman el símplex al espacio real:
+
+1.  Transformación log-ratio aditiva (ALR, por sus siglas en inglés) es un isomorfismo donde alr$:\mathcal{S}^n \to \mathbb{R}^{n-1}$ viene dado por $$
+    \text{alr}(\mathbf{x}) = \left(\ln\left(\frac{x_1}{x_n}\right), \ldots, \ln\left(\frac{x_{n-1}}{x_n}\right)\right).
+    $$
+
+2.  Transformación log-ratio centrada (CLR, por sus siglas en inglés) es una isometría donde clr$:\mathcal{S}^n \to U$, con $U = \{(y_1, \ldots, y_n) \in \mathbb{R}^n | \sum_{i=1}^n y_i = 0\} \subset \mathbb{R}^n$, viene dado por $$
+    \text{clr}(\mathbf{x}) = \left(\ln\left(\frac{x_1}{g(\mathbf{x})}\right), \ldots, \ln\left(\frac{x_{n-1}}{g(\mathbf{x})}\right)\right),
+    $$ donde $g(\mathbf{x})$ es la media geométrica de $\mathbf{x}$, es decir, $$
+    g(\mathbf{x}) = \left(\prod_{i=1}^nx_i\right)^\frac{1}{n}.
+    $$
+
+3.  Transformación log-ratio isométrica (ILR, por sus siglas en inglés) es una isometría donde ilr$:\mathcal{S}^n \to \mathbb{R}^{n-1}$ viene dado por $$
+    \text{ilr}(\mathbf{x}) = \left(\langle\mathbf{x}, \mathbf{e}_1\rangle, \ldots, \langle\mathbf{x}, \mathbf{e}_{n-1}\rangle\right),
+    $$ donde $\{\mathbf{e}_1, \ldots, \mathbf{e}_{n-1}\}$ es una base ortonormal del símplex.
+
+Cada una de ellas tiene sus ventajas y desventajas. Nosotros utilizaremos la transformación CLR, donde cada coordenada transformada representa el logaritmo de la razón de cada componente respecto a la media geométrica de todas las partes. Esto significa que no se interpretan valores absolutos, sino desviaciones relativas: un valor CLR positivo indica que la parte correspondiente es mayor que la media geométrica de la composición, mientras que un valor negativo indica que es menor. Una vez aplicada esta transformación en las variables con naturaleza composicional (las causas de muerte), mostramos el resultado de las cuatro primeras mediciones en la [@tbl-data_clr; @aitchison2000logratio].
 
 ```{r transformacion clr}
 new_data_clr <- new_data
-
-#new_data_clr[, 5:15] <- cmultRepl(new_data_clr[, 5:15], method="GBM", output="p-counts", suppress.print=TRUE, z.warning=0.99)
 
 new_data_clr[, 5:15] <- causas_muerte %>% 
   # Imputación de ceros
   mutate(across(where(is.numeric), ~ replace(., . == 0, 0.65))) %>% 
   clr %>%
   as_tibble()
-
-new_data_clr %>% glimpse
 ```
+
+::: {#tbl-data_clr tbl-cap="Base de datos obtenida a partir de la base mostrada en la @tbl-variables_nuevas con transformación CLR" tbl-cap-location="bottom"}
+| **Nombre de la variable**  |   **1**    |   **2**    |   **3**    |   **4**    |
+|:--------------------------:|:----------:|:----------:|:----------:|:----------:|
+|           *pais*           |  Albania   |  Albania   |  Albania   | *Albania*  |
+|       *codigo_Pais*        |    ALB     |    ALB     |    ALB     |    ALB     |
+|           *año*            |    1990    |    1991    |    1992    |    1993    |
+|        *poblacion*         |  3295066   |  3302082   |  3303739   |  3300711   |
+|     *enf_infec_paras*      | -1.421125  | -1.441382  | -1.479668  | -1.535840  |
+|    *enf_sist_nervioso*     | -0.3421852 | -0.3749270 | -0.3545639 | -0.3390876 |
+|     *enf_metabolicas*      | -1.310583  | -1.262230  | -1.226119  | -1.202456  |
+|     *causas_externas*      | 0.3365093  | 0.3825544  | 0.4110559  | 0.3997394  |
+|   *trastornos_embarazo*    | 0.3409786  | 0.2838677  | 0.2848791  | 0.2842900  |
+|   *trastornos_mentales*    | -3.750027  | -3.613605  | -3.593242  | -3.425792  |
+|   *enf_cardiovasculares*   |  2.351935  |  2.335734  |  2.326099  |  2.306162  |
+|    *infecciones_respi*     |  1.210484  |  1.190416  |  1.167981  |  1.119022  |
+|    *enf_sist_digestivo*    | 0.5022704  | 0.4723708  | 0.4614369  | 0.4344367  |
+|        *neoplasias*        |  1.411324  |  1.396289  |  1.395677  |  1.387554  |
+|       *enf_cronicas*       | 0.6704186  | 0.6309136  | 0.6064627  | 0.5719721  |
+|      *total_muertes*       |   16342    |   16813    |   16358    |   15819    |
+|           *idh*            |    64.7    |    62.9    |    61.4    |    61.7    |
+|    *emisiones_CO2_PIB*     |    0.42    |    0.39    |    0.23    |    0.20    |
+| *emisiones_CO2_per_capita* |    2.03    |    1.35    |    0.75    |    0.71    |
+:::
 
 ## 4 - Matriz de correlaciones
 
-Analicemos la matriz de correlaciones de las causas de muerte y las covariables. Usaremos la correlación de Spearman y no la de Pearson ya que nuestras variables de interés, las causas de muerte, son discretas.
+Analicemos la matriz de correlaciones de Spearman mostrada en la Figura @fig-matriz_correlaciones, de las causas de muerte y las covariables. Utilizamos la correlación de Spearman, en lugar de la de Pearson, ya que nuestras variables de interés —las causas de muerte— son de naturaleza discreta y pueden no cumplir los supuestos de normalidad y linealidad.
 
+Examinar esta matriz es fundamental porque nos permite identificar relaciones potenciales de asociación entre diferentes causas de mortalidad y factores socioeconómicos o ambientales, como las emisiones de CO$_2$ o el IDH. Detectar correlaciones altas o patrones inusuales puede orientar el planteamiento de modelos explicativos más robustos, ayudar a evitar la multicolinealidad y aportar hipótesis plausibles sobre interacciones o factores comunes que afecten simultáneamente a varias causas de muerte.
+
+::: {#fig-matriz_correlaciones fig-cap="Matriz de correlaciones de Spearman entre los conteos de muertes y las covariables de la base." fig-cap-location="bottom"}
 ```{r matriz correlaciones, fig.width=9}
 new_data_clr %>%
   dplyr::select(where(is.numeric)) %>%
   cor(., method = "spearman") %>% 
-  ggcorrplot(type = "upper", lab = TRUE, lab_size = 2.25, colors = c("red", "white", "blue"),
-             title = "Matriz de correlaciones")
+  ggcorrplot(type = "upper", lab = TRUE, lab_size = 2.25, colors = c("red", "white", "blue"))
 ```
+:::
 
-Fijémonos primero en las correlaciones entre causas de muerte y covariables. Las variables *población* y *emisiones_CO2_per_capita* apenas tiene correlación con las causas de muerte. La variable *emisiones_CO2_PIB* tiene correlaciones más altas, las más significativas son con *enf_sist_nervioso* y *causas_externas*. Por otro lado, la variable *idh* presenta altas correlaciones con algunas causas, tanto positivamente como negativamente. Esto es debido a que un IDH bajo corresponde a países poco desarrollados y podemos ver en las correlaciones negativas enfermedades que suelen ser comunes en estos países: enfermedades infecciosas y parasitarias, las cuales recordemos que engloban a meningitis, malaria, VIH y tuberculosis; y trastornos del embarazo, los cuales engloban trastornos maternos y neonatales. Luego, en las correlaciones positivas, podemos ver enfermedades del sistema nervioso, que engloba alzheimer y parkinson; neoplasias y enfermedades crónicas.
+Fijémonos primero en las correlaciones entre causas de muerte y covariables. Las variables *población* y *emisiones_CO2_per_capita* apenas tienen correlación con las causas de muerte. La variable *emisiones_CO2_PIB* tiene correlaciones más altas: las más significativas son con *enf_sist_nervioso* y *causas_externas*. Por otro lado, la variable *idh* presenta altas correlaciones con algunas causas, tanto positivamente como negativamente. Esto es debido a que un IDH bajo corresponde a países poco desarrollados y podemos ver en las correlaciones negativas enfermedades que suelen ser comunes en estos países: enfermedades infecciosas y parasitarias, las cuales recordemos que engloban a meningitis, malaria, VIH y tuberculosis; y trastornos del embarazo, los cuales engloban trastornos maternos y neonatales. Luego, en las correlaciones positivas, podemos ver enfermedades del sistema nervioso, que engloba alzheimer y parkinson; neoplasias y enfermedades crónicas.
 
 Por último, vemos que hay algunas enfermedades bastante correlacionadas y otras que no. La correlación positiva que más destaca es entre enfermedades del sistema nervioso y neoplasias, con un valor de $0.82$; mientras que la correlación negativa más destacada es entre enfermedades del sistema nervioso y trastornos del embarazo, con un valos de $-0.72$. La correlaciones más pequeña en valor absoluto, con un valor de $0$, corresponde a enfermedades metabólicas con infecciones respiratorias.
 
@@ -340,21 +446,29 @@ Cabe destacar el caso de la variable *total_muertes* que no tiene ninguna correl
 
 ## 5 - Tendencias temporales
 
-En este apartado vamos a estudiar las tendencias temporales de cada causa
+En este apartado vamos a estudiar las tendencias temporales de cada causa de muerte. Para ello, vamos a trabajar con una base de datos resultante de sumar los conteos de todos los países, es decir, vamos a ver la evolución temporal de cada causa a nivel europeo. La estructura de la base de datos es mostrada en la @tbl-strR.
 
-Vamos a trabajar con un tibble donde hay $30$ filas, una para cada año, donde los conteos de cada enfermedad son la suma de los conteos en todos los países de Europa en ese año.
-
-```{r muertes totales por año}
-total_muertes_agrupadas_año %>% 
-  glimpse
-```
-
-Ahora lo transformamos en una serie temporal y elaboramos los gráficos.
+::: {#tbl-strR tbl-cap="Estructura de la tabla de datos de defunciones por año y covariables mostradas mediante la instrucción str de R." tbl-cap-location="bottom"}
+|        **año**         | **1990** | **1991** | **1992** | **1993** | **1994** |
+|:----------------------:|:--------:|:--------:|:--------:|:--------:|:--------:|
+|   *enf_infec_paras*    |  60594   |  63604   |  68723   |  78164   |  87625   |
+|  *enf_sist_nervioso*   |  203318  |  210386  |  216637  |  223731  |  229549  |
+|   *enf_metabolicas*    |  120422  |  122416  |  123916  |  126732  |  128387  |
+|   *causas_externas*    |  443676  |  463734  |  504519  |  551287  |  582808  |
+| *trastornos_embarazo*  |  107599  |  101728  |  94695   |  89298   |  85891   |
+| *trastornos_mentales*  |  63639   |  69365   |  78402   |  90635   |  99876   |
+| *enf_cardiovasculares* | 3511347  | 3567511  | 3656760  | 3872094  | 3996749  |
+|  *infecciones_respi*   |  218396  |  215852  |  217936  |  228723  |  233884  |
+|  *enf_sist_digestivo*  |  429695  |  436562  |  448848  |  471906  |  490331  |
+|      *neoplasias*      | 1550681  | 1572939  | 1604179  | 1660453  | 1687884  |
+|     *enf_cronicas*     |  404001  |  406141  |  410952  |  425140  |  430979  |
+:::
 
 ```{r serie temporal}
 total_muertes_agrupadas_año.ts <- ts(total_muertes_agrupadas_año[-1], start = c(1990), end = c(2019), frequency = 1)
 ```
 
+::: {#fig-temporal1 fig-cap="Conteos totales por año de muertes por enfermedades infecciosas y parasitarias y por causas externas de morbilidad o mortalidad, lesiones y envenenamientos." fig-cap-location="bottom"}
 ```{r graficos 1, fig.width=10, fig.height=4}
 # Sin notación científica
 options(scipen = 5)
@@ -366,9 +480,11 @@ plot.ts(total_muertes_agrupadas_año.ts[, "enf_infec_paras"], ylab = "",
 plot.ts(total_muertes_agrupadas_año.ts[, "causas_externas"], ylab = "",
         xlab = "Año", main = "Causas externas")
 ```
+:::
 
-En estos primeros dos gráficos vemos un comportamiento alcista durante los primeros años hasta alcanzar sus máximos alrededor de 1995, para luego seguir con un comportamiento bajista y acabar en 2019 con una cantidad inferior a la cantidad de muertes iniciales, aunque en el segundo gráfico es bastante más inferior que en el primero.
+En estas figuras vemos un comportamiento alcista durante los primeros años hasta alcanzar sus máximos alrededor de 1995, para luego seguir con un comportamiento bajista y acabar en 2019 con una cantidad inferior a la cantidad de muertes iniciales, aunque este comportamiento en la figura de la derecha es bastante más inferior que en la figura de la izquierda
 
+::: {#fig-temporal2 fig-cap="Conteos totales por año de muertes por enfermedades del sistema nervios; enfermedades endocrinas, nutricionales o metabólicas; enfermedades del sistema digestivo; neoplasias; y enfermedades crónicas." fig-cap-location="bottom"}
 ```{r graficos 2, fig.width=10, fig.height=9}
 par(mfrow = c(3, 2), las = 1)
 
@@ -383,18 +499,22 @@ plot.ts(total_muertes_agrupadas_año.ts[, "neoplasias"], ylab = "",
 plot.ts(total_muertes_agrupadas_año.ts[, "enf_cronicas"], ylab = "",
         xlab = "Año", main = "Enfermedades crónicas")
 ```
+:::
 
-En estos cuatro gráficos podemos ver una clara tendencia alcista del número de muertes. Sin embargo, las defunciones por enfermedades del sistema digestivo se han estabilizado entre $550000$ y $600000$ a partir de 2005, y en las defunciones por enfermedades crónicas tenemos la tendencia alcista a partir de 2006.
+En estas figura, podemos ver una clara tendencia alcista del número de muertes. Sin embargo, las defunciones por enfermedades del sistema digestivo se han estabilizado entre $550000$ y $600000$ a partir de 2005, y en las defunciones por enfermedades crónicas tenemos la tendencia alcista a partir de 2006.
 
+::: {#fig-temporal3 fig-cap="Conteos totales por año de muertes por causas relacionadas con el embarazo, parto o puerperio y afecciones en el periodo perinatal." fig-cap-location="bottom"}
 ```{r graficos 3, fig.width=5, fig.height=4}
 par(mfrow = c(1, 1), las = 1)
 
 plot.ts(total_muertes_agrupadas_año.ts[, "trastornos_embarazo"], ylab = "",
         xlab = "Año", main = "Trastornos del embarazo")
 ```
+:::
 
-En este gráfico podemos apreciar una clara tendencia bajista, siendo la cantidad de muertes de 2019 más de un $75\%$ inferior a la cantidad de 1990.
+En esta figura podemos apreciar una clara tendencia bajista, siendo la cantidad de muertes de 2019 más de un $75\%$ inferior a la cantidad de 1990.
 
+::: {#fig-temporal4 fig-cap="Conteos totales por año de muertes por trastornos mentales, del comportamiento o del desarrollo neurológico; enfermedades del sistema circulatorio; y enfermedades del sistema respiratorio." fig-cap-location="bottom"}
 ```{r graficos 4, fig.width=10, fig.height=6}
 par(mfrow = c(2, 2), las = 1)
 
@@ -405,12 +525,15 @@ plot.ts(total_muertes_agrupadas_año.ts[, "enf_cardiovasculares"], ylab = "",
 plot.ts(total_muertes_agrupadas_año.ts[, "infecciones_respi"], ylab = "",
         xlab = "Año", main = "Infecciones respiratorias")
 ```
+:::
 
-En estos últimos tres gráficos se observa un comportamiento sinusoidal, con tendencias alcistas y bajistas en diferentes ventanas temporales. Las primeras dos causas tienen su mínimo en 1990, mientras que la tercera lo tiene en 2011. Por otro lado, el máximo de la primera lo alcanza en 2005, la segunda en 2003 y la tercera en 1995.
+En estas figuras se observa un comportamiento sinusoidal, con tendencias alcistas y bajistas en diferentes ventanas temporales. Las primeras dos causas tienen su mínimo en 1990, mientras que la tercera lo tiene en 2011. Por otro lado, el máximo de la primera lo alcanza en 2005, la segunda en 2003 y la tercera en 1995.
 
-Por último, comparemos la evolución de todas las causas en tres gráficos diferentes: número de muertes bajo, número de muertes medio y número de muertes alto.
+Por último, veamos la evolución de todas las causas de muerte agrupadas de acuerdo al número medio de muertes: En la @fig-temporal_resumen están las muertes cuyos conteos se consideran bajos (entre $20.000$ y $170.000$), medios (entre $200.000$ y $600.000$), y altos (entre $1.550.000$ y $4.020.000$).
 
+::: {#fig-temporal_resumen fig-cap="Evolución temporal de las causas con número de muertes bajo (entre 20.000 y 170.000), medio (entre 200.000 y 600.000) y alto (entre 1.550.000 y 4.020.000)." fig-cap-location="bottom"}
 ```{r grafico resumen, fig.height=8, fig.width=8}
+options(scipen = -2)
 par(mfrow = c(3, 2), las = 1)
 
 colores = c("blue", "red", "green", "purple", "orange", "black", "pink", "yellow", "cyan",
@@ -441,18 +564,15 @@ ts.plot(total_muertes_agrupadas_año.ts[, c("enf_cardiovasculares", "neoplasias"
 
 plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")  # Gráfico vacío para la leyenda
 legend("left", legend = nombres_causas[10:11], col = colores[10:11], lwd = 2, bty = "n")
-
-# Notación científica predeterminada
-#options(scipen = 0)
+options(scipen = 0)
 ```
+:::
 
 ## 6 - Análisis en componentes principales
 
-En este apartado realizaremos análisis en componentes principales (ACP). Veremos tres análisis: con las medianas temporales para cada país, en 1990 y en 2019; con el objetivo de ver si se producen cambios significativos a lo largo del tiempo en las agrupaciones de países.
+En este apartado se presenta un Análisis en Componentes Principales (ACP), una técnica estadística que permite reducir la dimensión de los datos y visualizar sus patrones de variabilidad conservando la mayor cantidad de información posible. Exploraremos en detalle las medianas temporales para cada país. Además, en el [Anexo A.1](#sec-acp) se incluyen los gráficos de los ACP realizados exclusivamente con los datos de 1990 y 2019, correspondientes al inicio y final del periodo analizado. El objetivo principal es observar si se producen cambios significativos en los patrones de agrupación entre países a lo largo del tiempo.
 
-### ACP medianas temporales
-
-En este primer análisis se hará sobre un conjunto de datos donde para cada país tendremos la mediana de cada causa de muerte y del IDH con respecto al tiempo. Construyamos primero este conjunto de datos.
+Este análisis se basa en una base de datos construida a partir de la mediana temporal de cada causa de muerte y del IDH por país. Durante la elaboración de la base de datos indentificamos dos valores nulos (0), que imputamos con el valor $0,65$ para poder aplicar la transformación CLR. Tras esta transformación, los datos son centrados para llevar a cabo el ACP.
 
 ```{r mediana temporal muertes}
 new_data_medianas <- new_data %>%
@@ -461,16 +581,12 @@ new_data_medianas <- new_data %>%
   ungroup()
 ```
 
-Veamos si hay alguna entrada que sea $0$.
 
 ```{r conteo ceros medianas}
 new_data_medianas %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
-  summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0)))) %>% 
-  glimpse
+  summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0))))
 ```
-
-Como hay dos $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ `r #Si no se imputan 0, clr deja ese espacio como 0` y luego aplicaremos la transformación *clr* y centraremos los datos.
 
 ```{r mediana temporal muertes clr}
 new_data_medianas_clr <- new_data_medianas %>%
@@ -493,7 +609,7 @@ data_cen_medianas <- Hn %*% as.matrix(new_data_medianas_clr[, 2:12]) %>%
   mutate(idh = new_data_medianas_clr$idh)
 ```
 
-Antes de realizar el método de componentes principales, observemos la matriz de varianzas-covarianzas y la matriz de correlación.
+Antes de realizar el método de componentes principales, mostraremos la matriz de varianzas-covarianzas.
 
 ```{r matriz covarianzas medianas}
 S_medianas = cov(data_cen_medianas[, 2:12])
@@ -501,23 +617,25 @@ cat("Matriz de varianzas-covarianzas\n")
 S_medianas
 ```
 
-Podemos ver que los valores de las varianzas se agrupan entre $0.07881073$ y $0.72369244$, siendo el valor mínimo de *enf_sist_digestivo* y el máximo de *trastornos_mentales*. Debido a esta diferencia entre las varianzas, realizaremos el ACP escalado, ya que si no, las componentes principales le darían más peso a las variables con una alta varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
+En la matriz de varianzas-covarianzas observamos que las varianzas oscilan entre $0,0788$ (para *enf_sist_digestivo*) y $0,7237$ (para *trastornos_mentales*). Esta diferencia justifica la necesidad de escalar las variables antes de aplicar el ACP, ya que, en caso contrario, las componentes principales estarían dominadas por las variables con mayor varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
 
 ```{r varianzas ordenadas medianas}
 sort(diag(S_medianas))
 ```
 
-Por otro lado, la matriz de correlaciones es:
+En la @fig-mat_correlacion_medianas se muestra la matriz de correlaciones de Pearson basada en las medianas temporales por país.
 
+::: {#fig-mat_correlacion_medianas fig-cap="Matriz de correlaciones de Pearson calculada a partir de las medianas temporales por país." fig-cap-location="bottom"}
 ```{r matriz correlacion medianas, fig.height=6}
 data_cen_medianas %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   cor(., method = "spearman") %>% 
   ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
-             title = "Matriz de correlaciones")
+             title = "")
 ```
+:::
 
-La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.76$. Por otro lado, la mayor correlación negativa se encuentra entre *causas_externas* y *enf_cronicas*, con un valor de $-0.66$.
+La correlación positiva más fuerte se observa entre *enf_sist_nervioso* y *neoplasias* ($r = 0,76$), mientras que la más negativa se da entre *causas_externas* y *enf_cronicas* ($r = −0,66$).
 
 Pasemos al estudio de las componentes principales. Calculemos los valores y vectores propios de la matriz de varianzas-covarianzas.
 
@@ -543,35 +661,37 @@ cat("Valores propios\n")
 vaps_medianas
 ```
 
-A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $61\%$ de la variación total. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
+A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $61\%$ de la variación total. Una manera más detallada de ver el peso de estas componentes es mediante la @fig-porc_var donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
+:::{#fig-porc_var fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de las medianas temporales por país." fig-cap-location="bottom"}
 ```{r porcentajes variacion medianas}
 fviz_eig(data_ACP_medianas, addlabels = TRUE, ylim = c(0,100))
 ```
+:::
 
-A partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
+A partir de la cuarta componente, el incremento en la varianza explicada es marginal, por lo que es razonable trabajar con dos o tres componentes. El círculo de correlaciones (@fig-circ_cor) permite visualizar las relaciones entre variables y su representación en el plano principal.
 
+:::{#fig-circ_cor fig-cap="Círculo de correlaciones del ACP calculado a partir de las medianas temporales por país." fig-cap-location="bottom"}
 ```{r circulo correlacion dim1-dim2 medianas}
-fviz_pca_var(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2)
+fviz_pca_var(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2, title = "")
 ```
+:::
 
-La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_cardiovasculares* y *enf_sist_digestivo* debido al poco peso que tienen.
+La mayoría de las variables están bien representadas en el plano principal, con excepción de *enf_cardiovasculares* y *enf_sist_digestivo*, que muestran una menor contribución. Las Figuras [15](#fig-contribucion) y [16](#fig-cos2) muestran, respectivamente, las contribuciones individuales de las variables y su calidad de representación en el plano.
 
-Podemos ver las contribuciones de cada variable al plano principal
-
+:::{#fig-contribucion fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
 ```{r contribuciones plano principal medianas}
-fviz_contrib(data_ACP_medianas, choice = "var", axes = 1:2,)
+fviz_contrib(data_ACP_medianas, choice = "var", axes = 1:2, title = "")
 ```
+:::
 
-Veamos también la calidad de representación de las variables:
-
+:::{#fig-cos2 fig-cap="Calidad de representación ($\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
 ```{r grafico barras cos2 medianas}
-fviz_cos2(data_ACP_medianas, choice = "var", axes = 1:2)
+fviz_cos2(data_ACP_medianas, choice = "var", axes = 1:2, title = "")
 ```
+:::
 
-En estos dos gráficos podemos ver de forma clara la mala representación de estas variables.
-
-Por último veamos una representación de los países en el plano principal con un biplot. Los colorearemos en función del IDH para ver si se agrupan en función de este. Podemos hacer cuatro grupos, separados por los cuartiles. Esto lo haremos también en los ACP de 1990 y 2019.
+Finalmente, en la @fig-biplot se presenta un biplot con la posición de cada país en el plano principal, coloreados según su IDH, dividido por cuartiles.
 
 ```{r grupos IDH medianas}
 cuartiles_medianas <- new_data_medianas %>% 
@@ -588,6 +708,7 @@ new_data_medianas_clr <- new_data_medianas_clr %>%
   mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
+:::{#fig-biplot fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
 ```{r biplots dim1-dim2 medianas, fig.width=10, fig.height=10}
 biplot_medianas <- fviz_pca_biplot(data_ACP_medianas, 
                 col.var = "darkgrey",
@@ -605,20 +726,412 @@ biplot_medianas <- fviz_pca_biplot(data_ACP_medianas,
 
 biplot_medianas
 ```
+:::
 
-Podemos ver que los países con mayor IDH se agrupan en el tercer cuadrante, caracterizado por las enfermedades del sistema nervioso y las neoplasias, propias de países más desarrollados. Por otro lado, los países con menor IDH se agrupan en el primer cuadrante, caracterizado por las enfermedades infecciosas y parasitarias y los trastornos del embarazo, propias de países menos desarrollados. A su vez, podemos ver una transición del IDH entre el primer y el tercer cuadrante.
+El gráfico muestra una clara estructura de agrupamiento según el nivel de desarrollo. Los países con mayor IDH se ubican principalmente en el tercer cuadrante, asociado a causas de muerte propias de contextos más desarrollados (como enfermedades del sistema nervioso y neoplasias). Por el contrario, los países con menor IDH se concentran en el primer cuadrante, caracterizado por enfermedades infecciosas y trastornos relacionados con el embarazo.
 
-### ACP 1990
+Este análisis exploratorio ha permitido identificar patrones relevantes en la distribución de las causas de muerte y su asociación con el nivel de desarrollo de los países. La estructura observada en el ACP sugiere que el IDH actúa como un eje organizador de los perfiles epidemiológicos nacionales. No obstante, para cuantificar de manera más precisa la relación entre las causas de muerte y variables explicativas como el IDH, resulta necesario utilizar un modelo estadístico adaptado al conteo de datos y a la posible sobredispersión. En la siguiente sección, se aplicará un modelo de regresión binomial negativa sobre el número total de muertes por país.
 
-Veamos ahora un análisis en componentes principales donde tomaremos los datos de 1990. Construyamos primero este conjunto de datos.
+## 7 - Ajuste de modelo NBMM
+
+Para finalizar, en este apartado abordamos el ajuste del NBMM propuesto en la sección 4 del capítulo 2 del trabajo para analizar el conteo de muertes en Europa. Antes de entrar en detalles, conviene justificar por qué utilizamos un modelo Binomial Negativo en lugar de uno Poisson, que suele ser el más usual para modelizar datos de conteo.
+
+### Motivación para usar el modelo Binomial Negativo
+
+Los modelos de regresión Poisson asumen que la media y la varianza de la variable respuesta son iguales (esto es, $E[Y] = \text{Var}(Y)$), lo que se conoce como *equidispersión*. Sin embargo, en el caso de conteo de muertes podemos observar *sobredispersión*, es decir, que la varianza exceda notablemente a la media. En esos casos, el modelo Poisson tiende a infravalorar la probabilidad de observar valores atípicamente altos, dando lugar a errores sistemáticos en la estimación de los parámetros y de las incertidumbres asociadas.
+
+Para ilustrar intuitivamente este fenómeno, podríamos tomar los datos de un país concreto (por ejemplo, España) sobre muertes causadas por enfermedades del sistema nervioso entre 1990 y 2019. Si agrupáramos esos valores y tratáramos de calcular una media y varianza global, obtenemos
+
+```{r media y varianza España}
+new_data %>%
+  filter(pais == "España") %>%
+  summarise(mean = mean(enf_sist_nervioso), var = var(enf_sist_nervioso))
+```
+
+donde claramente $\hat{\sigma}^2 \gg \hat{\mu}$. Aunque esta comparación numérica es meramente orientativa, puesto que cada año está asociado a diferentes variables aleatorias, sirve para ver que probablemente tendremos sobredispersión. Esto haría que el modelo Poisson:
+
+-   Subestime sistemáticamente la probabilidad de observar años con conteos muy altos.
+-   Proporcione intervalos de confianza demasiado estrechos para los parámetros.
+
+Por eso, elegimos la regresión Binomial Negativa para nuestro conjunto de datos. Recordemos que en este modelo la varianza cumple:
+
+$$
+\text{Var}(Y) = E[Y] + \alpha\ \bigl(E[Y]\bigr)^2,
+$$
+
+siendo $\alpha > 0$ el parámetro de sobredispersión. Más adelante, cuando ajustemos el modelo veremos rigurosamente que:
+
+-   Si $\alpha \approx 0$, los datos se comportan aproximadamente como equidispersos.
+-   Si $\alpha$ es significativamente mayor que cero, es señal de sobredispersión en el conteo de muertes.
+
+De esta manera, el parámetro $\alpha$ nos permitirá cuantificar la sobredispersión real de los datos, sin necesidad de depender de una media y varianza muestral imposibles de calcular en cada país–año.
+
+### Descripción del modelo propuesto
+
+Basándonos en la motivación anterior, proponemos el NBMM descrito en la sección 4 del capítulo 2 del trabajo. Modelaremos la variable que representa las muertes causadas por las enfermedades del sistema nervioso. El resto de causas se realizan de manera análoga.
+
+Sea $Y_{ij}$ la variable aleatoria que representa el conteo de muertes causadas por las enfermedades del sistema nervioso en el país $i$ y el año $j$. Por ejemplo, $y_{41,1} = 14557$ son las defunciones en España ($i=41$) en el año 1990 ($j=1$) por esta causa. Supondremos que $Y_{ij} \sim \text{NB}(\mu_{ij},\alpha)$ y queremos ver cómo afecta el IDH y el tiempo a esta variable, añadiendo un *offset*, por ser datos composicionales, y efectos aleatorios, para capturar la variabilidad entre países. Así, la ecuación de nuestro modelo queda
+$$
+    \ln(\mu_{ij}) = \ln(N_{ij}) + \beta_{0} + \beta_{1}x_{ij} + \beta_{2}t_j + \beta_{3}t_j^2 + \beta_{4}t_j^3 + u_i,
+$$
+es decir,
+$$
+    \mu_{ij} = N_{ij}\exp\left(\beta_{0} + \beta_{1}x_{ij} + \beta_{2}t_j + \beta_{3}t_j^2 + \beta_{4}t_j^3 + u_i\right),
+$$
+donde:
+
+-   $N_{ij}$ es el número total de fallecimientos en el país $i$ en el año $j$.
+-   $x_{ij}$ es el IDH del país $i$ en el año $j$.
+-   $t_j$ es el año reescalado, es decir, $t_j = \frac{j - 1}{29}$.
+-   $\beta_{0}$, $\beta_{1}$, $\beta_{2}$, $\beta_{3}$, $\beta_{4}$ son los coeficientes a estimar.
+-   $u_i$ es el efecto aleatorio por país. Son realizaciones de una variable aleatoria que sigue la distribución $N(0,\sigma^2)$.
+
+### Estimación del modelo
+
+Para estimar el modelo, primero vamos a reescalar nuestra variable año de forma que caiga en el intervalo $[0,1]$ para evitar posibles errores por *overflow*. Además, al querer un polinomio cúbico necesitamos las variables año al cuadrado y año al cubo.
+
+```{r polinomio año}
+new_data <- new_data %>% 
+  mutate(año = as.numeric(año)) %>% 
+  mutate(año = (año - min(año)) / (max(año) - min(año))) %>% 
+  rowwise() %>%  
+  mutate(año2 = año^2, .after = año) %>% 
+  mutate(año3 = año^3, .after = año2) %>% 
+  ungroup()
+```
+
+Para realizar la estimación, utilizamos la función `glmm.nb` del paquete `NBZIMM` [@nbzimm], que permite ajustar modelos de regresión binomial negativa para datos de conteo con sobredispersión. Tal como se comentó anteriormente, aplicamos este modelo específicamente a los casos de muertes por enfermedades del sistema nervioso, dado que este paquete no permite estimar modelos multivariantes de forma conjunta.
+
+Una vez estimado el modelo, empleamos la función `summary()`para examinar los valores estimados de los parámetros y evaluar su significancia estadística. La @tbl-estimacion1 resume las estimaciones de los coeficientes ($\mathbf{\beta}$), junto con su error estándar, el valor $t$ y el $p$-valor asociado para contrastar la hipótesis nula de que cada parámetro es igual a cero.
+
+```{r modelo 1 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
+N = new_data$total_muertes # offset
+
+m_enf_sist_nervioso1 = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
+                              random = ~ 1 | pais, data = new_data)
+```
+
+:::{#tbl-estimacion1 tbl-cap="Estimación de los parámetros del modelo binomial negativo."}
+```{r summary modelo 1}
+summary(m_enf_sist_nervioso1)
+```
+:::
+
+Analizando los resultados, observamos que el intercepto ($\beta_0$) es significativamente distinto de cero ($p$-valor $< 0,001$), lo que sugiere una tasa de base relevante en el conteo de muertes. Asimismo, los coeficientes $\beta_1$, $\beta_3$ y $\beta_4$ presentan valores $t$ elevados y $p$-valores muy bajos, indicando que las covariables correspondientes tienen un efecto estadísticamente significativo sobre la variable respuesta.
+
+En contraste, el coeficiente $\beta_2$, correspondiente a la variable *año*, no resulta significativo ($p$-valor $= 0,2661$), por lo que podría considerarse su exclusión o una reinterpretación de su efecto dentro del modelo.
+
+Estos resultados permiten interpretar la magnitud y dirección de los efectos de cada covariable sobre el número de muertes, teniendo en cuenta la naturaleza logarítmica del enlace utilizado en la regresión binomial negativa. La validación del modelo debería completarse mediante un análisis de residuos y la comprobación de los supuestos del modelo, con el fin de garantizar la robustez de las conclusiones obtenidas.
+
+La estimación $b_k$ corresponde al valor calculado por el método de scoring. Este estimador sigue, asintóticamente, una distribución normal con media el parámetro $\beta_k$ y varianza igual al inverso de la información observada, $\mathfrak{J}_k^{-1}$ (el error estándar al cuadrado). Por lo tanto:
+
+$$
+\frac{b_k-\beta_k}{\sqrt{\mathfrak{J}_k^{-1}}} \underset{n \to \infty}{\sim} N(0, 1). 
+$$
+
+Cuando el tamaño muestral no es lo suficientemente grande, esta estadística sigue una distribución $t$ de Student. En nuestro caso, dado que $n = 1380$, se puede aproximar por una distribución normal estándar.
+
+El $p$-valor asociado corresponde al siguiente contraste de hipótesis:
+
+$$
+    \begin{cases}
+        H_0: \; \beta_k = 0,\\
+        H_1: \; \beta_k \ne 0.\\
+    \end{cases}
+$$
+
+El valor $z$ (denominado $t$ en la tabla) se calcula como:
+
+$$
+    z_k = \frac{b_k - 0}{\sqrt{\mathfrak{J}_k^{-1}}},
+$$
+
+y el $p$-valor se obtiene como:
+
+$$
+    p_k = 2\cdot P(Z \ge |z_k|), \quad \text{con } Z \sim N(0,1).
+$$
+
+Utilizamos un nivel de significación del 5%: si $p_k < 0,05$, se rechaza la hipótesis nula y se concluye que el coeficiente $\beta_k$ es significativamente distinto de cero.
+
+Como se puede ver, todos los coeficientes excepto $\beta_2$ son estadísticamente significativos. En el caso de $\beta_2$, con un $p$-valor del $26,61\,\%$, no se puede rechazar la hipótesis nula. Por tanto, planteamos la posibilidad de eliminar esta covariable del modelo y comparar ambas versiones.
+
+A continuación, presentamos los resultados de un segundo modelo, en el que se ha excluido la variable correspondiente a $\beta_2$:
+
+```{r modelo 0 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
+m_enf_sist_nervioso0 = glmm.nb(enf_sist_nervioso ~ idh + año2 + año3 + offset(log(N)),
+                              random = ~ 1 | pais, data = new_data)
+```
+
+```{r summary modelo 0}
+summary(m_enf_sist_nervioso0)
+```
+
+Para comparar estos dos modelos calculamos la diferencia de devianzas $\Delta D$ como estadístico de bondad de ajuste. Sea $M_0$ el modelo reducido (sin $\beta_2$), con hipótesis:
+
+$$
+    H_0:\; \mathbf{\beta} = (\beta_0, \beta_1, \beta_3, \beta_4)^\intercal,
+$$
+
+y $M_1$ el modelo completo, que incluye la covariable correspondiente a $\beta_2$, con hipótesis:
+
+$$
+    H_1:\; \mathbf{\beta} = (\beta_0, \beta_1, \beta_2, \beta_3, \beta_4)^\intercal.
+$$
+
+Las devianzas de ambos modelos, comparadas con el modelo saturado (que toma $\mu_{ij} = y_{ij}$), son:
+
+```{r D0 y D1}
+Y0 = new_data$enf_sist_nervioso
+lnN0 = log(new_data$total_muertes)
+
+b0 = m_enf_sist_nervioso0$coefficients$fixed
+a0 = m_enf_sist_nervioso0$sigma
+u0 = rep(m_enf_sist_nervioso0$coefficients$random$pais, each = 30)
+X0 <- m_enf_sist_nervioso0$data %>% dplyr::select(idh, año2, año3) %>% cbind(1, .) %>%
+      as.matrix()
+colnames(X0)[1] = "intercept"
+eta0 = lnN0 + X0 %*% b0 + u0
+
+D0 = 2*(Y0%*%(log(Y0)-eta0)-(1/a0 + Y0)%*%log((1+a0*Y0)/(1+a0*exp(eta0))))
+
+Y1 = new_data$enf_sist_nervioso
+lnN1 = log(new_data$total_muertes)
+
+b1 = m_enf_sist_nervioso1$coefficients$fixed
+a1 = m_enf_sist_nervioso1$sigma
+u1 = rep(m_enf_sist_nervioso1$coefficients$random$pais, each = 30)
+X1 <- m_enf_sist_nervioso1$data %>% dplyr::select(idh, año, año2, año3) %>% cbind(1, .) %>%
+      as.matrix()
+colnames(X1)[1] = "intercept"
+eta1 = lnN1 + X1 %*% b1 + u1
+
+D1 = 2*(Y1%*%(log(Y1)-eta1)-(1/a1 + Y1)%*%log((1+a1*Y1)/(1+a1*exp(eta1))))
+```
+
+```{r p-valores}
+p0 = pchisq(D0, df = 1331, lower.tail = FALSE)
+p1 = pchisq(D1, df = 1330, lower.tail = FALSE)
+```
+
+-   $D_0 = $ `D0`, con $D_0 \sim \chi^2(1331)$, y $p$-valor: $P(\chi_{1331}^2 \ge D_0) = $ `p0`.
+-   $D_1 = $ `D1`, con $D_1 \sim \chi^2(1330)$, y $p$-valor: $P(\chi_{1330}^2 \ge D_1) = $ `p1`.
+
+
+y el p-valor $P(\chi^2_{1331} \ge D_0)$ es
+
+Ambos modelos se ajustan de forma similar al modelo saturado. La diferencia de devianzas es:
+
+```{r estadistico}
+DeltaD = D0 - D1
+DeltaD
+```
+
+y dado que $\Delta D \sim \chi^2(1)$, su $p$-valor asociado es:
+
+```{r p-valor estadistico}
+pchisq(DeltaD, df = 1, lower.tail = FALSE)
+```
+
+Este resultado indica que no existe evidencia suficiente para preferir el modelo completo sobre el modelo reducido. Por tanto, optamos por el modelo más simple ($M_0$) por razones de parsimonia.
+
+Finalmente, el valor estimado del parámetro de sobredispersión es $\alpha = $ `m_enf_sist_nervioso0$sigma`, lo cual confirma que los datos presentan sobredispersión y justifica el uso del modelo binomial negativo frente a una regresión de Poisson estándar.
+
+Además, podemos ver que la desviación típica del efecto aleatorio $u_i$ es $0,4029578$ y en la @paises vemos los valores que toma en los diferentes países.
+
+:::{#tbl-paises tbl-cap="Efectos aleatorios $u_i$ estimados para cada país." tbl-cap-location="bottom"}
+```{r paises}
+random_ef <- m_enf_sist_nervioso0$coefficients$random$pais
+
+random_ef
+```
+:::
+
+### Interpretación del modelo ajustado
+
+En definitiva, el modelo binomial negativo ajustado para las muertes por enfermedades del sistema nervioso es:
+
+$$
+    \ln(\mu_{ij}) = \ln(N_{ij}) - 3.678163 + 0.002147x_{ij} + 1.268723t_j^2 - 0.696646t_j^3 + u_i,
+$$
+
+es decir,
+
+$$
+\begin{aligned}
+    \mu_{ij} &= N_{ij}\exp\left(-3.678163 + 0.002147x_{ij} + 1.268723t_j^2 - 0.696646t_j^3 + u_i\right) \\
+             &= N_{ij} \cdot e^{-3.678163} \cdot e^{0.002147x_{ij}} \cdot e^{1.268723t_j^2} \cdot e^{-0.696646t_j^3} \cdot e^{u_i} \\
+             &= N_{ij} \cdot 0.025269 \cdot 1.002150^{x_{ij}} \cdot 3.556309^{t_j^2} \cdot 0.498254^{t_j^3} \cdot e^{u_i},
+\end{aligned}
+$$
+
+donde $u_i \sim N(0, 0.4029578)$ representa el efecto aleatorio asociado al país.
+
+De esta forma, el producto
+$$
+0.025269 \cdot 1.002150^{x_{ij}} \cdot 3.556309^{t_j^2} \cdot 0.498254^{t_j^3}
+$$
+representa la proporción estimada de defunciones por enfermedades del sistema nervioso para un país con determinado IDH en un año específico. El término $1.002150^{x_{ij}}$ muestra cómo influye el IDH: por ejemplo, si un país tiene un IDH máximo ($x_{ij} = 100$), el factor sería aproximadamente $1.2395$, lo cual representa un aumento del $23,95\,\%$ en el número de defunciones por esta causa.
+
+Esta proporción se multiplica por el número total de muertes $N_{ij}$ para obtener el conteo esperado. Finalmente, el efecto aleatorio $e^{u_i}$ permite ajustar la estimación según las desviaciones particulares de cada país respecto a la tendencia global. Esto resulta especialmente útil para capturar variabilidad estructural no explicada por las covariables incluidas en el modelo. Por ejemplo, dos países con el mismo IDH en el mismo año podrían presentar niveles diferentes de mortalidad debido a factores no observados (como políticas sanitarias, infraestructuras o hábitos de vida).
+
+Veamos ahora cómo varía este factor de ajuste ($e^{u_i}$) entre países en el siguiente mapa de Europa:
+
+```{r}
+# Descarga países del mundo como objetos 'sf'
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Filtra solo Europa
+europe <- world %>% filter(name_es %in% c(paises_eu, "Ciudad del Vaticano", "Jersey", "Guernsey",
+                                   "Isla de Man", "San Marino", "Macedonia del Norte", 
+                                   "Liechtenstein", "Kosovo", "Irlanda", "Alemania", "Åland",
+                                   "Islas Feroe","República Checa", "Bosnia y Herzegovina",
+                                   "República Turca del Norte de Chipre", "Georgia"))
+
+u <- m_enf_sist_nervioso0$coefficients$random$pais %>% exp() %>% as_tibble(., rownames = "pais") 
+colnames(u) <- c("pais", "u")
+
+europe <- europe %>%
+  left_join(u, by = c("name_es" = "pais")) 
+
+paises_NA <- europe %>% filter(is.na(u)) %>% pull(name_es)
+indices_NA <- europe$name_es %in% paises_NA
+lista_valores_NA <- u %>% filter(pais %in% c("Italia", "Reino Unido", "Austria", "Serbia",
+                                             "Finlandia", "Dinamarca", "República de Macedonia",
+                                             "Irlanda (isla)", "Georgia (desambiguación)",
+                                             "Republica Checa", "Chipre", "Bosnia-Herzegovina")) %>% 
+  # Estimación Alemania por filtro espacial (Alirio)
+  add_row(pais = "Alemania", u = 1.15)
+
+valores_NA = c(lista_valores_NA$u[8], lista_valores_NA$u[9], lista_valores_NA$u[9],
+               lista_valores_NA$u[9], lista_valores_NA$u[8], lista_valores_NA$u[11],
+               lista_valores_NA$u[1], lista_valores_NA$u[12], lista_valores_NA$u[7],
+               lista_valores_NA$u[13], lista_valores_NA$u[6], lista_valores_NA$u[5],
+               lista_valores_NA$u[4], lista_valores_NA$u[10], lista_valores_NA$u[3],
+               lista_valores_NA$u[2])
+
+europe$u[indices_NA] = valores_NA
+
+# Añadimos los efectos aleatorios
+ggplot(europe) +
+  geom_sf(aes(fill = u), color = "black") +
+  scale_fill_gradient2(
+    midpoint = 1,
+    low = "blue", mid = "white", high = "red",
+    na.value = "grey60",
+    name = expression(e^{u[i]} * " (Efecto aleatorio)"),
+  ) +
+  coord_sf(
+    xlim = c(-25, 60),  # longitud: desde Portugal hasta parte de Rusia
+    ylim = c(35, 72)    # latitud: desde el sur de Europa hasta Escandinavia
+  ) +
+  theme_minimal()
+```
+
+En el mapa, los países coloreados en azul tienen un factor menor que $1$, lo que indica que presentan un número de defunciones inferior al esperado según el modelo. Por el contrario, los países en tonos rojos superan el nivel esperado. Por ejemplo, para España, se obtiene $e^{u_{41}} = e^{0.595931} = 1.814720$, lo cual implica que se esperan un $81.47\,\%$ más de fallecimientos por enfermedades del sistema nervioso en comparación con un país promedio.
+
+### Análisis de residuales
+
+Para evaluar la calidad del ajuste del modelo, analizamos los residuales de Pearson, definidos como:
+
+$$
+    r_{P,ij} = \frac{y_{ij} - \hat{\mu}_{ij}}{\sqrt{\hat{\mu}_{ij} + a\hat{\mu}_{ij}^2}},
+$$
+
+donde:
+
+-   $y_{ij}$ es el número observado de muertes en el país $i$ y año $j$,
+-   $\hat{\mu}_{ij}$ es el valor estimado de muertes,
+-   $a$ es el parámetro de sobredispersión estimado, es decir, $\alpha$.
+
+Cuanto más cercano a cero es un residual, mejor es el ajuste para esa observación. A continuación, mostramos cómo se distribuyen los residuales en función de distintas covariables del modelo.
+
+```{r residuales}
+residuales = m_enf_sist_nervioso0$residuals
+
+analisis_residuales = data.frame(residuales = residuales[,2], año = new_data$año, pais = new_data$pais,
+                                 grupo_idh = new_data$idh)
+
+cuartiles <- new_data %>% 
+  dplyr::select(idh) %>% 
+  pull %>% 
+  quantile(., probs = c(0.25, 0.5, 0.75))
+
+# Clasificar los países en función de los cuartiles del IDH
+analisis_residuales <- analisis_residuales %>%
+  mutate(grupo_idh = case_when(grupo_idh <= cuartiles_medianas[1] ~ "Bajo", 
+                               grupo_idh <= cuartiles_medianas[2] ~ "Medio Bajo", 
+                               grupo_idh <= cuartiles_medianas[3] ~ "Medio Alto", 
+                               TRUE ~ "Alto")) %>% 
+  mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto"))) %>% 
+  mutate(año = año*29 + 1990) # Reescalamos el año para que sea el original
+```
+
+
+:::{#fig-residuales_año fig-cap="Distribución de los residuales de Pearson por año." fig-cap-location="bottom"}
+```{r boxplot residuales año}
+analisis_residuales %>% 
+  dplyr::select(c(residuales, año)) %>%
+  mutate(año = factor(año)) %>% 
+  ggplot(aes(x = año, y = residuales)) +
+  geom_boxplot(width = 0.75, color = "black") +
+  theme_minimal() +
+  labs(x = "Año", y = "Residuales") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+:::
+
+En la @fig-residuales_año se observa que el ajuste es mejor alrededor del año 2000, donde las cajas son más estrechas y la mediana se aproxima a $0$. A medida que nos alejamos hacia los extremos del marco temporal, aumenta la variabilidad, lo que indica un ajuste menos preciso en esos periodos.
+
+:::{#fig-residuales_idh fig-cap="Distribución de los residuales de Pearson por IDH." fig-cap-location="bottom"}
+```{r boxplot residuales idh}
+analisis_residuales %>% 
+  dplyr::select(c(residuales, grupo_idh)) %>%
+  ggplot(aes(x = grupo_idh, y = residuales)) +
+  geom_boxplot(width = 0.3, color = c("darkred", "lightcoral", "#4A90E2", "darkblue")) +
+  theme_minimal() +
+  labs(x = "Nivel de IDH", y = "Residuales") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+```
+:::
+
+La @fig-residuales_idh muestra que, conforme aumenta el IDH, el modelo se ajusta mejor. Este comportamiento es coherente con la elevada correlación entre el IDH y la tasa de muertes por enfermedades del sistema nervioso.
+
+:::{#fig-residuales_pais fig-cap="Distribución de los residuales de Pearson por país." fig-cap-location="bottom"}
+```{r boxplot residuales pais}
+analisis_residuales %>% 
+  dplyr::select(c(residuales, pais)) %>%
+  ggplot(aes(x = pais, y = residuales)) +
+  geom_boxplot(width = 0.8, color = "black") +
+  theme_minimal() +
+  labs(x = "País", y = "Residuales") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+:::
+
+Por último, en la @fig-residuales_pais se evidencian diferencias entre países. En algunos como Azerbaiyán, Montenegro o Portugal, el modelo no se ajusta adecuadamente; mientras que en otros como Bulgaria, Finlandia o Francia, se observa un mejor ajuste. Como cada caja resume los datos de un mismo país a lo largo del tiempo, estas diferencias pueden deberse, en parte, a la suposición de un parámetro de sobredispersión constante en todos los países, lo cual podría no reflejar adecuadamente la heterogeneidad estructural de cada nación.
+
+El modelo binomial negativo ajustado para las enfermedades del sistema nervioso ha demostrado ser una herramienta adecuada para modelar datos de conteo con sobredispersión. La incorporación de efectos aleatorios por país ha permitido capturar diferencias no observadas entre regiones, mejorando la interpretación y robustez del ajuste.
+
+El IDH, inicialmente parecía relevante, y efectivamente resultó significativo en el modelo final, observado patrones importantes en la variabilidad de los residuos según su valor.
+
+La estructura temporal capturada mediante términos cuadráticos y cúbicos del tiempo indica una evolución no lineal del fenómeno, compatible con transiciones epidemiológicas asociadas al desarrollo socioeconómico. El análisis de residuos confirma un buen ajuste global, aunque con ciertas limitaciones en los extremos temporales y en algunos países concretos.
+
+En conjunto, este modelo proporciona una base sólida para interpretar tendencias de mortalidad por causas neurológicas y, en futuras extensiones, podría integrarse dentro de modelos más amplios o multivariantes para explorar patrones compartidos con otras causas de muerte.
+
+## Apéndices
+
+### A.1 - Análisis de componentes principales {#sec-acp}
+
+#### ACP 1990
+
+Veamos ahora un análisis en componentes principales donde tomaremos los datos de 1990. Durante la elaboración de la base de datos indentificamos un valor nulo (0), que imputamos con el valor $0,65$ para poder aplicar la transformación CLR. Tras esta transformación, los datos son centrados para llevar a cabo el ACP.
 
 ```{r 1990}
 new_data_1990 <- new_data %>%
-  filter(año == 1990) %>%
+  filter(año == 0) %>%
   dplyr::select(codigo_Pais, enf_infec_paras:enf_cronicas, idh)
 ```
-
-Veamos si hay alguna entrada que sea $0$.
 
 ```{r conteo ceros 1990}
 new_data_1990 %>%
@@ -626,8 +1139,6 @@ new_data_1990 %>%
   summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0)))) %>% 
   glimpse
 ```
-
-Como hay un $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ y luego aplicaremos la transformación *clr* y centraremos los datos.
 
 ```{r 1990 clr}
 new_data_1990_clr <- new_data_1990 %>%
@@ -658,23 +1169,25 @@ cat("Matriz de varianzas-covarianzas\n")
 S_1990
 ```
 
-Podemos ver que los valores de las varianzas se agrupan entre $0.07792913$ y $0.71067096$, siendo el valor mínimo de *enf_cardiovasculares* y el máximo de *trastornos_mentales*. Debido a esta diferencia entre las varianzas, realizaremos el ACP escalado, ya que si no, las componentes principales le darían más peso a las variables con una alta varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
+En la matriz de varianzas-covarianzas observamos que las varianzas oscilan entre $0,0779$ (para *enf_cardiovasculares*) y $0,7107$ (para *trastornos_mentales*). Esta diferencia justifica la necesidad de escalar las variables antes de aplicar el ACP, ya que, en caso contrario, las componentes principales estarían dominadas por las variables con mayor varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
 
 ```{r varianzas ordenadas 1990}
 sort(diag(S_1990))
 ```
 
-Por otro lado, la matriz de correlaciones es:
+En la @fig-mat_cor_1990 se muestra la matriz de correlaciones de Pearson basada en las medianas temporales por país.
 
+::: {#fig-mat_cor_1990 fig-cap="Matriz de correlaciones de Pearson calculada a partir de los datos de 1990." fig-cap-location="bottom"}
 ```{r matriz correlacion 1990, fig.height=6}
 data_cen_1990 %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   cor(., method = "spearman") %>% 
   ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
-             title = "Matriz de correlaciones")
+             title = "")
 ```
+:::
 
-La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.86$. Por otro lado, la mayor correlación negativa se encuentra entre *enf_sist_nervioso* y *trastornos_embarazo*, con un valor de $-0.75$.
+La correlación positiva más fuerte se observa entre *enf_sist_nervioso* y *neoplasias* ($r = 0.86$), mientras que la más negativa se da entre *enf_sist_nervioso* y *trastornos_embarazo* ($r = -0.75$).
 
 Pasemos al estudio de las componentes principales. Calculemos los valores y vectores propios de la matriz de varianzas-covarianzas.
 
@@ -700,35 +1213,37 @@ cat("Valores propios\n")
 vaps_1990
 ```
 
-A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $58\%$ de la variación total. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
+A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $58\%$ de la variación total. Una manera más detallada de ver el peso de estas componentes es mediante la @fig-var_1990 donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
+:::{#fig-var_1990 fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de los datos de 1990." fig-cap-location="bottom"}
 ```{r porcentajes variacion 1990}
 fviz_eig(data_ACP_1990, addlabels = TRUE, ylim = c(0,100))
 ```
+:::
 
-A partir de la tabla y el gráfico podemos elegir dos componentes principales, ya que a partir de la tercera componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
+A partir de la tercera componente, el incremento en la varianza explicada es marginal, por lo que es razonable trabajar con dos componentes. El círculo de correlaciones (@fig-circ_cor_1990) permite visualizar las relaciones entre variables y su representación en el plano principal.
 
+:::{#fig-circ_cor_1990 fig-cap="Círculo de correlaciones del ACP calculado a partir de los datos de 1990." fig-cap-location="bottom"}
 ```{r circulo correlacion dim1-dim2 1990}
 fviz_pca_var(data_ACP_1990, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
+:::
 
-La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_sist_digestivo* debido al poco peso que tiene.
+La mayoría de las variables están bien representadas en el plano principal, con excepción de *enf_cardiovasculares* y *enf_sist_digestivo*, que muestran una menor contribución. Las Figuras [24](#fig-contribuciones_1990) y [25](#fig-cos2_1990) muestran, respectivamente, las contribuciones individuales de las variables y su calidad de representación en el plano.
 
-Podemos ver las contribuciones de cada variable al plano principal
-
+:::{#fig-contribuciones_1990 fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
 ```{r contribuciones plano principal 1990}
 fviz_contrib(data_ACP_1990, choice = "var", axes = 1:2,)
 ```
+:::
 
-Veamos también la calidad de representación de las variables:
-
+:::{#fig-cos2_1990 fig-cap="Calidad de representación ($\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
 ```{r grafico barras cos2 1990}
 fviz_cos2(data_ACP_1990, choice = "var", axes = 1:2)
 ```
+:::
 
-En estos dos gráficos podemos ver de forma clara la mala representación de *enf_sist_digestivo*.
-
-Por último veamos una representación de los países en el plano principal con un biplot.
+Finalmente, en la @fig-biplot_1990 se presenta un biplot con la posición de cada país en el plano principal, coloreados según su IDH, dividido por cuartiles.
 
 ```{r grupos IDH 1990}
 cuartiles_1990 <- new_data_1990 %>% 
@@ -745,6 +1260,7 @@ new_data_1990_clr <- new_data_1990_clr %>%
   mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
+:::{#fig-biplot_1990 fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
 ```{r biplots dim1-dim2 1990, fig.width=10, fig.height=10}
 biplot_1990 <- fviz_pca_biplot(data_ACP_1990, 
                 col.var = "darkgrey",
@@ -762,20 +1278,18 @@ biplot_1990 <- fviz_pca_biplot(data_ACP_1990,
 
 biplot_1990
 ```
-
+:::
 En este gráfico no podemos ver una agrupación clara.
 
-### ACP 2019
+#### ACP 2019
 
-Veamos ahora un análisis en componentes principales donde tomaremos los datos de 2019. Construyamos primero este conjunto de datos.
+Veamos ahora un análisis en componentes principales donde tomaremos los datos de 2019. Durante la elaboración de la base de datos indentificamos tres valores nulos (0), que imputamos con el valor $0,65$ para poder aplicar la transformación CLR. Tras esta transformación, los datos son centrados para llevar a cabo el ACP.
 
 ```{r 2019}
 new_data_2019 <- new_data %>%
-  filter(año == 2019) %>%
+  filter(año == 1) %>%
   dplyr::select(codigo_Pais, enf_infec_paras:enf_cronicas, idh)
 ```
-
-Veamos si hay alguna entrada que sea $0$.
 
 ```{r conteo ceros 2019}
 new_data_2019 %>%
@@ -783,8 +1297,6 @@ new_data_2019 %>%
   summarise(total_ceros = sum(across(where(is.numeric), ~ sum(. == 0)))) %>% 
   glimpse
 ```
-
-Como hay un $0$, para poder realizar la transformación *clr* lo tendremos que imputar. Lo vamos a sustituir por $0.65$ y luego aplicaremos la transformación *clr* y centraremos los datos.
 
 ```{r 2019 clr}
 new_data_2019_clr <- new_data_2019 %>%
@@ -815,23 +1327,25 @@ cat("Matriz de varianzas-covarianzas\n")
 S_2019
 ```
 
-Podemos ver que los valores de las varianzas se agrupan entre $0.06812191$ y $0.73138636$, siendo el valor mínimo de *enf_sist_digestivo* y el máximo de *trastornos_mentales*. Debido a esta diferencia entre las varianzas, realizaremos el ACP escalado, ya que si no, las componentes principales le darían más peso a las variables con una alta varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
+En la matriz de varianzas-covarianzas observamos que las varianzas oscilan entre $0,0681$ (para *enf_sist_digestivo*) y $0,7314$ (para *trastornos_mentales*). Esta diferencia justifica la necesidad de escalar las variables antes de aplicar el ACP, ya que, en caso contrario, las componentes principales estarían dominadas por las variables con mayor varianza. Veamos de una forma más clara las varianzas ordenadas de menor a mayor.
 
 ```{r varianzas ordenadas 2019}
 sort(diag(S_2019))
 ```
 
-Por otro lado, la matriz de correlaciones es:
+En la @fig-mat_cor_2019 se muestra la matriz de correlaciones de Pearson basada en las medianas temporales por país.
 
+::: {#fig-mat_cor_2019 fig-cap="Matriz de correlaciones de Pearson calculada a partir de los datos de 2019." fig-cap-location="bottom"}
 ```{r matriz correlacion 2019, fig.height=6}
 data_cen_2019 %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
   cor(., method = "spearman") %>% 
   ggcorrplot(type = "upper", lab = TRUE, colors = c("red", "white", "blue"),
-             title = "Matriz de correlaciones")
+             title = "")
 ```
+:::
 
-La mayor correlación positiva se encuentra entre *enf_sist_nervioso* y *neoplasias*, con un valor de $0.67$. Por otro lado, la mayor correlación negativa se encuentra entre *causas_externas* y *enf_cronicas*, con un valor de $-0.69$.
+La correlación positiva más fuerte se observa entre *enf_sist_nervioso* y *neoplasias* ($r = 0.67$), mientras que la más negativa se da entre *causas_externas* y *enf_cronicas* ($r = -0.69$).
 
 Pasemos al estudio de las componentes principales. Calculemos los valores y vectores propios de la matriz de varianzas-covarianzas.
 
@@ -857,35 +1371,37 @@ cat("Valores propios\n")
 vaps_2019
 ```
 
-A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $60\%$ de la variación total. Para ver de una manera más detallada el peso de estas componentes, podemos hacer el siguiente gráfico, donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
+A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $60\%$ de la variación total. Una manera más detallada de ver el peso de estas componentes es mediante la @fig-var_2019 donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
+:::{#fig-var_2019 fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de los datos de 2019." fig-cap-location="bottom"}
 ```{r porcentajes variacion 2019}
 fviz_eig(data_ACP_2019, addlabels = TRUE, ylim = c(0,100))
 ```
+:::
 
-A partir de la tabla y el gráfico podemos elegir dos o tres componentes principales, ya que a partir de la cuarta componente el porcentaje de variabilidad no aumenta lo suficiente como para considerar una dimensión más. Representemos estas variables en el espacio.
+A partir de la cuarta componente, el incremento en la varianza explicada es marginal, por lo que es razonable trabajar con dos o tres componentes. El círculo de correlaciones (@fig-circ_cor_2019) permite visualizar las relaciones entre variables y su representación en el plano principal.
 
+:::{#fig-circ_cor_2019 fig-cap="Círculo de correlaciones del ACP calculado a partir de los datos de 2019." fig-cap-location="bottom"}
 ```{r circulo correlacion dim1-dim2 2019}
 fviz_pca_var(data_ACP_2019, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
+:::
 
-La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_sist_digestivo* y *enf_cardiovasculares* debido al poco peso que tienen.
+La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_sist_digestivo* y *enf_cardiovasculares* debido al poco peso que tienen. Las Figuras [30](#fig-contribuciones_2019) y [31](#fig-cos2_2019) muestran, respectivamente, las contribuciones individuales de las variables y su calidad de representación en el plano.
 
-Podemos ver las contribuciones de cada variable al plano principal
-
+:::{#fig-contribuciones_2019 fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
 ```{r contribuciones plano principal 2019}
 fviz_contrib(data_ACP_2019, choice = "var", axes = 1:2,)
 ```
+:::
 
-Veamos también la calidad de representación de las variables:
-
+:::{#fig-cos2_2019 fig-cap="Calidad de representación ($\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
 ```{r grafico barras cos2 2019}
 fviz_cos2(data_ACP_2019, choice = "var", axes = 1:2)
 ```
+:::
 
-En estos dos gráficos podemos ver de forma clara la mala representación de *enf_sist_digestivo* y *enf_cardiovasculares*, seguidas de *infecciones_respi* y *enf_infec_paras*.
-
-Por último veamos una representación de los países en el plano principal con un biplot.
+Finalmente, en la @fig-biplot_2019 se presenta un biplot con la posición de cada país en el plano principal, coloreados según su IDH, dividido por cuartiles.
 
 ```{r grupos IDH 2019}
 cuartiles_2019 <- new_data_2019 %>% 
@@ -902,6 +1418,7 @@ new_data_2019_clr <- new_data_2019_clr %>%
   mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
+:::{#fig-biplot_2019 fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
 ```{r biplots dim1-dim2 2019, fig.width=10, fig.height=10}
 biplot_2019 <- fviz_pca_biplot(data_ACP_2019, 
                 col.var = "darkgrey",
@@ -919,7 +1436,7 @@ biplot_2019 <- fviz_pca_biplot(data_ACP_2019,
 
 biplot_2019
 ```
-
+:::
 En este gráfico tampoco podemos ver una agrupación clara.
 
 Para acabar veamos juntos los tres gráficos que hemos analizado:
@@ -928,11 +1445,11 @@ Para acabar veamos juntos los tres gráficos que hemos analizado:
 grid.arrange(biplot_1990, biplot_2019, biplot_medianas, ncol = 2)
 ```
 
-## 7 - Análisis en coordenadas principales
+### A.2 - Análisis en coordenadas principales
 
 Vamos a realizar también un análisis en coordenadas principales (o escalamiento multidimensional). Este análisis se hará, de nuevo, en los tres conjuntos de datos que hemos construido en el ACP. Por su naturaleza composicional, no podemos utilizar las distancias Euclídea o de Manhattan. En su lugar, utilizaremos la distancia de Aitchison, que es la distancia Euclídea entre dos muestras después de aplicar la transformación CLR. Cuando representemos los puntos, de nuevo los colorearemos según su nivel de IDH.
 
-### MDS medianas
+#### MDS medianas
 
 Mostremos las distancias entre los primeros 8 países de la tabla.
 
@@ -995,7 +1512,7 @@ m_22_medianas
 
 con lo que vemos que hay una buena representación.
 
-### MDS 1990
+#### MDS 1990
 
 Mostremos las distancias entre los primeros 8 países de la tabla.
 
@@ -1058,7 +1575,7 @@ m_22_1990
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
 
-### MDS 2019
+#### MDS 2019
 
 Mostremos las distancias entre los primeros 8 países de la tabla.
 
@@ -1121,247 +1638,4 @@ m_22_2019
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
 
-## 8 - Ajuste de modelo NBMM
-
-Con el objetivo de ver cómo afecta el IDH al número de muertes por diferentes causas, vamos a ajustar un modelo binomial negativo mixto. Antes de entrar en detalles, conviene justificar por qué utilizamos un modelo Binomial Negativo en lugar de uno Poisson, que suele ser el más usual para modelizar datos de conteo.
-
-### Motivación para usar el modelo Binomial Negativo
-
-Los modelos de regresión Poisson asumen que la media y la varianza de la variable respuesta son iguales (esto es, $E[Y] = \text{Var}(Y)$), lo que se conoce como *equidispersión*. Sin embargo, en el caso de conteo de muertes podemos observar *sobredispersión*, es decir, que la varianza exceda notablemente a la media. En esos casos, el modelo Poisson tiende a infravalorar la probabilidad de observar valores atípicamente altos, dando lugar a errores sistemáticos en la estimación de los parámetros y de las incertidumbres asociadas.
-
-Para ilustrar este fenómeno, elegimos un país concreto (por ejemplo, España) y examinamos el número de muertes anuales causadas por enfermedades del sistema nervioso entre 1990 y 2019. Si agregamos estos datos y calculamos la media y varianza observadas, obtenemos
-
-```{r media y varianza España}
-new_data %>%
-  filter(pais == "España") %>%
-  summarise(mean = mean(enf_sist_nervioso), var = var(enf_sist_nervioso))
-```
-
-Mientras que el modelo Poisson sólo encaja bien si $\hat{\mu} \approx \hat{\sigma}^2$, vemos que $\hat{\sigma}^2 = 44076945$ es muy superior a $26381.7$, indicando sobredispersión. Esto haría que el modelo Poisson:
-
--   Subestime sistemáticamente la probabilidad de observar años con conteos muy altos.
--   Proporcione intervalos de confianza demasiado estrechos para los parámetros.
-
-La regresión Binomial Negativa soluciona ese inconveniente al permitir que la varianza sea mayor que la media mediante un parámetro adicional de sobredispersión $\alpha$, cumpliendo:
-
-$$
-\text{Var}(Y) = E[Y] + \alpha\ \bigl(E[Y]\bigr)^2.
-$$
-
-De este modo, si los conteos presentan una variabilidad superior a la que asumiría un modelo Poisson, la Binomial Negativa constituye una elección más adecuada y reduce el sesgo en las estimaciones.
-
-### Descripción del NBMM
-
-Ajustaremos un modelo a los datos sobre muertes causadas por enfermedades del sistema nervioso. Para analizar el resto de causas se procede de manera análoga. Basándonos en la motivación anterior, proponemos un modelo Binomial Negativo Mixto
-(NBMM) que, además de corregir la sobredispersión, incorpora un \textit{offset} para tener
-en cuenta el total anual de muertes en cada país y un efecto aleatorio que capture
-la heterogeneidad intrínseca entre países, además de un polinomio cúbico para capturar el efecto del tiempo. La formulación es la siguiente:
-
-$$
-\log(\mu_{ij}) = \log\bigl(N_{ij}\bigr) + \beta_{0} + \beta_{1}x_{ij} + \beta_{2}t_j + \beta_{3}t_j^2 + \beta_{4}t_j^3 + u_i,
-$$
-
-donde 
-
--   $\mu_{ij}$ es la media de muertes causadas por enfermedades del sistema nervioso en el país $i$ en el año $j$.
--   $N_{ij}$ es el total de muertes en el país $i$ en el año $j$.
--   $x_{ij}$ es el IDH del país $i$ en el año $j$.
--   $t_j$ es el año.
--   $\beta_{0}$, $\beta_{1}$, $\beta_{2}$, $\beta_{3}$, $\beta_{4}$ son los coeficientes a estimar.
--   $u_i \sim \mathcal{N}(0,\sigma^2)$ es el efecto aleatorio país.
-
-### Estimación del modelo
-
-Para estimar el modelo, primero vamos a reescalar nuestra variable año de forma que caiga en el intervalo $[0,1]$ para evitar posibles errores por *overflow*. Además, al querer un polinomio cúbico necesitamos las variables año al cuadrado y año al cubo.
-
-```{r polinomio año}
-new_data <- new_data %>% 
-  mutate(año = as.numeric(año)) %>% 
-  mutate(año = (año - min(año)) / (max(año) - min(año))) %>% 
-  rowwise() %>%  
-  mutate(año2 = año^2, .after = año) %>% 
-  mutate(año3 = año^3, .after = año2) %>% 
-  ungroup()
-```
-
-` #Realizaremos tres ajustes: uno con enfermedades del sistema nervioso, con una alta correlación positiva con el IDH; otro con enfermedades del sistema digestivo, con una correlación casi nula con el IDH; y otro con trastornos del embarazo, con una alta correlación negativa con el IDH. `
-
-Ahora procedamos a realizar el ajuste de nuestro modelo.
-
-```{r modelo 1 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
-N = new_data$total_muertes # offset
-
-m_enf_sist_nervioso1 = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + offset(log(N)),
-                              random = ~ 1 | pais, data = new_data)
-```
-
-```{r summary modelo 1}
-summary(m_enf_sist_nervioso1)
-```
-
-Podemos ver que el p-valor de la variable *año* es alto ($0.2621$) lo que sugiere que la variable no es significativa, es decir, que puede que su coeficiente asociado valga $0$. Vamos a eliminarla y comparar el modelo resultante.
-
-```{r modelo 0 NBMM enf_sist_nervioso, echo=TRUE, warning = FALSE, message = FALSE}
-m_enf_sist_nervioso0 = glmm.nb(enf_sist_nervioso ~ idh + año2 + año3 + offset(log(N)),
-                              random = ~ 1 | pais, data = new_data)
-```
-
-```{r summary modelo 0}
-summary(m_enf_sist_nervioso0)
-```
-
-En este nuevo modelo vemos que todas las variables tienen un p-valor bajo, lo que sugiere que son significativas. Vamos a comparar ambos modelos calculando la diferencia de las desviaciones $\Delta D$ y viendo si se encuentra en la región crítica de la distribución $\chi^2(1)$
-
-Sea $M_0$ el modelo más simple con hipótesis
-$$
-    H_0:\; (\mathbf{\beta}, \alpha) = (\beta_{0,2}, \beta_{1,2}, \beta_{3,2}, \beta_{4,2}, \alpha)^T,
-$$
-y sea $M_1$ el modelo que incluye el parámetro para la variable \textit{año}, con hipótesis
-$$
-    H_1:\; (\mathbf{\beta}, \alpha) = (\beta_{0,2}, \beta_{1,2}, \beta_{2,2}, \beta_{3,2}, \beta_{4,2}, \alpha)^T.
-$$
-
-La desviación del modelo $M_0$ es:
-
-```{r D0}
-Y = new_data$enf_sist_nervioso
-lnN = log(new_data$total_muertes)
-
-b0 = m_enf_sist_nervioso0$coefficients$fixed
-a0 = m_enf_sist_nervioso0$sigma
-u0 = rep(m_enf_sist_nervioso0$coefficients$random$pais, each = 30)
-X0 <- m_enf_sist_nervioso0$data %>% dplyr::select(idh, año2, año3) %>% cbind(1, .) %>%
-      as.matrix()
-colnames(X0)[1] = "intercept"
-eta0 = lnN + X0 %*% b0 + u0
-
-D0 = 2*(Y%*%(log(Y)-eta0)-(1/a0 + Y)%*%log((1+a0*Y)/(1+a0*exp(eta0))))
-D0
-```
-
-y el p-valor $P(\chi^2_{1331} \ge D_0)$ es
-
-```{r p-valor 0}
-pchisq(D0, df = 1331, lower.tail = FALSE)
-```
-
-lo que sugiere que el modelo $M_0$ es adecuado. Veamos ahora el modelo $M_1$.
-
-```{r D1}
-Y = new_data$enf_sist_nervioso
-lnN = log(new_data$total_muertes)
-
-b1 = m_enf_sist_nervioso1$coefficients$fixed
-a1 = m_enf_sist_nervioso1$sigma
-u1 = rep(m_enf_sist_nervioso1$coefficients$random$pais, each = 30)
-X1 <- m_enf_sist_nervioso1$data %>% dplyr::select(idh, año, año2, año3) %>% cbind(1, .) %>%
-      as.matrix()
-colnames(X1)[1] = "intercept"
-eta1 = lnN + X1 %*% b1 + u1
-
-D1 = 2*(Y%*%(log(Y)-eta1)-(1/a1 + Y)%*%log((1+a1*Y)/(1+a1*exp(eta1))))
-D1
-```
-
-y el p-valor $P(\chi^2_{1330} \ge D_1)$ es
-
-```{r p-valor 1}
-pchisq(D1, df = 1330, lower.tail = FALSE)
-```
-
-lo que sugiere que el modelo $M_1$ es adecuado. Por último, comparemos ambos modelos con el estadístico $\Delta D = D_0 - D_1$, que sigue la distribución $\Delta D \sim \chi^2(1)$
-
-```{r estadistico}
-DeltaD = D0 - D1
-DeltaD
-```
-
-y el p-valor $P(\chi^2_{1} \ge \Delta D)$ es
-
-```{r p-valor estadistico}
-pchisq(DeltaD, df = 1, lower.tail = FALSE)
-```
-
-Como el estadístico no se encuentra en la región crítica, elegiremos el modelo $M_0$ por ser más simple.
-
-### Análisis de los residuales
-
-Vamos a analizar los residuales del modelo ajustado. Primero, extraemos los residuales del modelo y los organizamos en un dataframe junto con el año, el país y el grupo de IDH.
-
-```{r residuales}
-residuales = m_enf_sist_nervioso0$residuals
-
-analisis_residuales = data.frame(residuales = residuales[,2], año = new_data$año, pais = new_data$pais,
-                                 grupo_idh = new_data$idh)
-
-cuartiles <- new_data %>% 
-  dplyr::select(idh) %>% 
-  pull %>% 
-  quantile(., probs = c(0.25, 0.5, 0.75))
-
-# Clasificar los países en función de los cuartiles del IDH
-analisis_residuales <- analisis_residuales %>%
-  mutate(grupo_idh = case_when(grupo_idh <= cuartiles_medianas[1] ~ "Bajo", 
-                               grupo_idh <= cuartiles_medianas[2] ~ "Medio Bajo", 
-                               grupo_idh <= cuartiles_medianas[3] ~ "Medio Alto", 
-                               TRUE ~ "Alto")) %>% 
-  mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto"))) %>% 
-  mutate(año = año*29 + 1990) # Reescalamos el año para que sea el original
-```
-
-Veamos cómo se distribuyen según el año:
-
-``` {r boxplot resiudales año}
-analisis_residuales %>% 
-  dplyr::select(c(residuales, año)) %>%
-  mutate(año = factor(año)) %>% 
-  ggplot(aes(x = año, y = residuales)) +
-  geom_boxplot(width = 0.75, color = "black") +
-  theme_minimal() +
-  labs(x = "Año", y = "Residuales") +
-  theme(axis.text.x = element_text(angle = 30, hjust = 1))
-```
-
-Ahora según el nivel de IDH:
-
-``` {r boxplot resiudales idh}
-analisis_residuales %>% 
-  dplyr::select(c(residuales, grupo_idh)) %>%
-  ggplot(aes(x = grupo_idh, y = residuales)) +
-  geom_boxplot(width = 0.3, color = c("darkred", "lightcoral", "#4A90E2", "darkblue")) +
-  theme_minimal() +
-  labs(x = "Nivel de IDH", y = "Residuales") +
-  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-```
-
-Y, por último, según el país:
-
-``` {r boxplot resiudales pais}
-analisis_residuales %>% 
-  dplyr::select(c(residuales, pais)) %>%
-  ggplot(aes(x = pais, y = residuales)) +
-  geom_boxplot(width = 0.8, color = "black") +
-  theme_minimal() +
-  labs(x = "País", y = "Residuales") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-```{r include=FALSE}
-
-car::qqPlot(residuales[,1])
-
-shapiro.test(residuales[,1])
-```
-
-```{r include=FALSE}
-u = m_enf_sist_nervioso1$coefficients$random$pais
-u
-sd(u)
-mean(u)
-```
-
-```{r include=FALSE}
-plot(density(u))
-shapiro.test(u)
-```
-
+## Bibliografía
