@@ -15,6 +15,7 @@ editor_options:
   chunk_output_type: inline
 bibliography: bibliografia.bib
 csl: ieee.csl
+---ll
 ---
 
 ## 1 - Datos de mortalidad en Europa
@@ -581,7 +582,6 @@ new_data_medianas <- new_data %>%
   ungroup()
 ```
 
-
 ```{r conteo ceros medianas}
 new_data_medianas %>%
   dplyr::select(enf_infec_paras:enf_cronicas) %>%
@@ -663,7 +663,7 @@ vaps_medianas
 
 A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $61\%$ de la variación total. Una manera más detallada de ver el peso de estas componentes es mediante la @fig-porc_var donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
-:::{#fig-porc_var fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de las medianas temporales por país." fig-cap-location="bottom"}
+::: {#fig-porc_var fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de las medianas temporales por país." fig-cap-location="bottom"}
 ```{r porcentajes variacion medianas}
 fviz_eig(data_ACP_medianas, addlabels = TRUE, ylim = c(0,100))
 ```
@@ -671,7 +671,7 @@ fviz_eig(data_ACP_medianas, addlabels = TRUE, ylim = c(0,100))
 
 A partir de la cuarta componente, el incremento en la varianza explicada es marginal, por lo que es razonable trabajar con dos o tres componentes. El círculo de correlaciones (@fig-circ_cor) permite visualizar las relaciones entre variables y su representación en el plano principal.
 
-:::{#fig-circ_cor fig-cap="Círculo de correlaciones del ACP calculado a partir de las medianas temporales por país." fig-cap-location="bottom"}
+::: {#fig-circ_cor fig-cap="Círculo de correlaciones del ACP calculado a partir de las medianas temporales por país." fig-cap-location="bottom"}
 ```{r circulo correlacion dim1-dim2 medianas}
 fviz_pca_var(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2, title = "")
 ```
@@ -679,13 +679,13 @@ fviz_pca_var(data_ACP_medianas, col.var = "contrib", repel = TRUE, axes = 1:2, t
 
 La mayoría de las variables están bien representadas en el plano principal, con excepción de *enf_cardiovasculares* y *enf_sist_digestivo*, que muestran una menor contribución. Las Figuras [15](#fig-contribucion) y [16](#fig-cos2) muestran, respectivamente, las contribuciones individuales de las variables y su calidad de representación en el plano.
 
-:::{#fig-contribucion fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
+::: {#fig-contribucion fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
 ```{r contribuciones plano principal medianas}
 fviz_contrib(data_ACP_medianas, choice = "var", axes = 1:2, title = "")
 ```
 :::
 
-:::{#fig-cos2 fig-cap="Calidad de representación ($\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
+::: {#fig-cos2 fig-cap="Calidad de representación ($\\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
 ```{r grafico barras cos2 medianas}
 fviz_cos2(data_ACP_medianas, choice = "var", axes = 1:2, title = "")
 ```
@@ -708,7 +708,7 @@ new_data_medianas_clr <- new_data_medianas_clr %>%
   mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
-:::{#fig-biplot fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
+::: {#fig-biplot fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
 ```{r biplots dim1-dim2 medianas, fig.width=10, fig.height=10}
 biplot_medianas <- fviz_pca_biplot(data_ACP_medianas, 
                 col.var = "darkgrey",
@@ -770,15 +770,11 @@ De esta manera, el parámetro $\alpha$ nos permitirá cuantificar la sobredisper
 
 Basándonos en la motivación anterior, proponemos el NBMM descrito en la sección 4 del capítulo 2 del trabajo. Modelaremos la variable que representa las muertes causadas por las enfermedades del sistema nervioso. El resto de causas se realizan de manera análoga.
 
-Sea $Y_{ij}$ la variable aleatoria que representa el conteo de muertes causadas por las enfermedades del sistema nervioso en el país $i$ y el año $j$. Por ejemplo, $y_{41,1} = 14557$ son las defunciones en España ($i=41$) en el año 1990 ($j=1$) por esta causa. Supondremos que $Y_{ij} \sim \text{NB}(\mu_{ij},\alpha)$ y queremos ver cómo afecta el IDH y el tiempo a esta variable, añadiendo un *offset*, por ser datos composicionales, y efectos aleatorios, para capturar la variabilidad entre países. Así, la ecuación de nuestro modelo queda
-$$
+Sea $Y_{ij}$ la variable aleatoria que representa el conteo de muertes causadas por las enfermedades del sistema nervioso en el país $i$ y el año $j$. Por ejemplo, $y_{41,1} = 14557$ son las defunciones en España ($i=41$) en el año 1990 ($j=1$) por esta causa. Supondremos que $Y_{ij} \sim \text{NB}(\mu_{ij},\alpha)$ y queremos ver cómo afecta el IDH y el tiempo a esta variable, añadiendo un *offset*, por ser datos composicionales, y efectos aleatorios, para capturar la variabilidad entre países. Así, la ecuación de nuestro modelo queda $$
     \ln(\mu_{ij}) = \ln(N_{ij}) + \beta_{0} + \beta_{1}x_{ij} + \beta_{2}t_j + \beta_{3}t_j^2 + \beta_{4}t_j^3 + u_i,
-$$
-es decir,
-$$
+$$ es decir, $$
     \mu_{ij} = N_{ij}\exp\left(\beta_{0} + \beta_{1}x_{ij} + \beta_{2}t_j + \beta_{3}t_j^2 + \beta_{4}t_j^3 + u_i\right),
-$$
-donde:
+$$ donde:
 
 -   $N_{ij}$ es el número total de fallecimientos en el país $i$ en el año $j$.
 -   $x_{ij}$ es el IDH del país $i$ en el año $j$.
@@ -811,7 +807,7 @@ m_enf_sist_nervioso1 = glmm.nb(enf_sist_nervioso ~ idh + año + año2 + año3 + 
                               random = ~ 1 | pais, data = new_data)
 ```
 
-:::{#tbl-estimacion1 tbl-cap="Estimación de los parámetros del modelo binomial negativo."}
+::: {#tbl-estimacion1 tbl-cap="Estimación de los parámetros del modelo binomial negativo."}
 ```{r summary modelo 1}
 summary(m_enf_sist_nervioso1)
 ```
@@ -914,9 +910,8 @@ p0 = pchisq(D0, df = 1331, lower.tail = FALSE)
 p1 = pchisq(D1, df = 1330, lower.tail = FALSE)
 ```
 
--   $D_0 = $ `D0`, con $D_0 \sim \chi^2(1331)$, y $p$-valor: $P(\chi_{1331}^2 \ge D_0) = $ `p0`.
--   $D_1 = $ `D1`, con $D_1 \sim \chi^2(1330)$, y $p$-valor: $P(\chi_{1330}^2 \ge D_1) = $ `p1`.
-
+-   \$D_0 = \$ `D0`, con $D_0 \sim \chi^2(1331)$, y $p$-valor: \$P(\chi\_{1331}\^2 \ge D_0) = \$ `p0`.
+-   \$D_1 = \$ `D1`, con $D_1 \sim \chi^2(1330)$, y $p$-valor: \$P(\chi\_{1330}\^2 \ge D_1) = \$ `p1`.
 
 y el p-valor $P(\chi^2_{1331} \ge D_0)$ es
 
@@ -935,11 +930,11 @@ pchisq(DeltaD, df = 1, lower.tail = FALSE)
 
 Este resultado indica que no existe evidencia suficiente para preferir el modelo completo sobre el modelo reducido. Por tanto, optamos por el modelo más simple ($M_0$) por razones de parsimonia.
 
-Finalmente, el valor estimado del parámetro de sobredispersión es $\alpha = $ `m_enf_sist_nervioso0$sigma`, lo cual confirma que los datos presentan sobredispersión y justifica el uso del modelo binomial negativo frente a una regresión de Poisson estándar.
+Finalmente, el valor estimado del parámetro de sobredispersión es \$\alpha = \$ `m_enf_sist_nervioso0$sigma`, lo cual confirma que los datos presentan sobredispersión y justifica el uso del modelo binomial negativo frente a una regresión de Poisson estándar.
 
 Además, podemos ver que la desviación típica del efecto aleatorio $u_i$ es $0,4029578$ y en la @paises vemos los valores que toma en los diferentes países.
 
-:::{#tbl-paises tbl-cap="Efectos aleatorios $u_i$ estimados para cada país." tbl-cap-location="bottom"}
+::: {#tbl-paises tbl-cap="Efectos aleatorios $u_i$ estimados para cada país." tbl-cap-location="bottom"}
 ```{r paises}
 random_ef <- m_enf_sist_nervioso0$coefficients$random$pais
 
@@ -967,11 +962,9 @@ $$
 
 donde $u_i \sim N(0, 0.4029578)$ representa el efecto aleatorio asociado al país.
 
-De esta forma, el producto
-$$
+De esta forma, el producto $$
 0.025269 \cdot 1.002150^{x_{ij}} \cdot 3.556309^{t_j^2} \cdot 0.498254^{t_j^3}
-$$
-representa la proporción estimada de defunciones por enfermedades del sistema nervioso para un país con determinado IDH en un año específico. El término $1.002150^{x_{ij}}$ muestra cómo influye el IDH: por ejemplo, si un país tiene un IDH máximo ($x_{ij} = 100$), el factor sería aproximadamente $1.2395$, lo cual representa un aumento del $23,95\,\%$ en el número de defunciones por esta causa.
+$$ representa la proporción estimada de defunciones por enfermedades del sistema nervioso para un país con determinado IDH en un año específico. El término $1.002150^{x_{ij}}$ muestra cómo influye el IDH: por ejemplo, si un país tiene un IDH máximo ($x_{ij} = 100$), el factor sería aproximadamente $1.2395$, lo cual representa un aumento del $23,95\,\%$ en el número de defunciones por esta causa.
 
 Esta proporción se multiplica por el número total de muertes $N_{ij}$ para obtener el conteo esperado. Finalmente, el efecto aleatorio $e^{u_i}$ permite ajustar la estimación según las desviaciones particulares de cada país respecto a la tendencia global. Esto resulta especialmente útil para capturar variabilidad estructural no explicada por las covariables incluidas en el modelo. Por ejemplo, dos países con el mismo IDH en el mismo año podrían presentar niveles diferentes de mortalidad debido a factores no observados (como políticas sanitarias, infraestructuras o hábitos de vida).
 
@@ -1067,8 +1060,7 @@ analisis_residuales <- analisis_residuales %>%
   mutate(año = año*29 + 1990) # Reescalamos el año para que sea el original
 ```
 
-
-:::{#fig-residuales_año fig-cap="Distribución de los residuales de Pearson por año." fig-cap-location="bottom"}
+::: {#fig-residuales_año fig-cap="Distribución de los residuales de Pearson por año." fig-cap-location="bottom"}
 ```{r boxplot residuales año}
 analisis_residuales %>% 
   dplyr::select(c(residuales, año)) %>%
@@ -1083,7 +1075,7 @@ analisis_residuales %>%
 
 En la @fig-residuales_año se observa que el ajuste es mejor alrededor del año 2000, donde las cajas son más estrechas y la mediana se aproxima a $0$. A medida que nos alejamos hacia los extremos del marco temporal, aumenta la variabilidad, lo que indica un ajuste menos preciso en esos periodos.
 
-:::{#fig-residuales_idh fig-cap="Distribución de los residuales de Pearson por IDH." fig-cap-location="bottom"}
+::: {#fig-residuales_idh fig-cap="Distribución de los residuales de Pearson por IDH." fig-cap-location="bottom"}
 ```{r boxplot residuales idh}
 analisis_residuales %>% 
   dplyr::select(c(residuales, grupo_idh)) %>%
@@ -1097,7 +1089,7 @@ analisis_residuales %>%
 
 La @fig-residuales_idh muestra que, conforme aumenta el IDH, el modelo se ajusta mejor. Este comportamiento es coherente con la elevada correlación entre el IDH y la tasa de muertes por enfermedades del sistema nervioso.
 
-:::{#fig-residuales_pais fig-cap="Distribución de los residuales de Pearson por país." fig-cap-location="bottom"}
+::: {#fig-residuales_pais fig-cap="Distribución de los residuales de Pearson por país." fig-cap-location="bottom"}
 ```{r boxplot residuales pais}
 analisis_residuales %>% 
   dplyr::select(c(residuales, pais)) %>%
@@ -1215,7 +1207,7 @@ vaps_1990
 
 A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $58\%$ de la variación total. Una manera más detallada de ver el peso de estas componentes es mediante la @fig-var_1990 donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
-:::{#fig-var_1990 fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de los datos de 1990." fig-cap-location="bottom"}
+::: {#fig-var_1990 fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de los datos de 1990." fig-cap-location="bottom"}
 ```{r porcentajes variacion 1990}
 fviz_eig(data_ACP_1990, addlabels = TRUE, ylim = c(0,100))
 ```
@@ -1223,7 +1215,7 @@ fviz_eig(data_ACP_1990, addlabels = TRUE, ylim = c(0,100))
 
 A partir de la tercera componente, el incremento en la varianza explicada es marginal, por lo que es razonable trabajar con dos componentes. El círculo de correlaciones (@fig-circ_cor_1990) permite visualizar las relaciones entre variables y su representación en el plano principal.
 
-:::{#fig-circ_cor_1990 fig-cap="Círculo de correlaciones del ACP calculado a partir de los datos de 1990." fig-cap-location="bottom"}
+::: {#fig-circ_cor_1990 fig-cap="Círculo de correlaciones del ACP calculado a partir de los datos de 1990." fig-cap-location="bottom"}
 ```{r circulo correlacion dim1-dim2 1990}
 fviz_pca_var(data_ACP_1990, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
@@ -1231,13 +1223,13 @@ fviz_pca_var(data_ACP_1990, col.var = "contrib", repel = TRUE, axes = 1:2)
 
 La mayoría de las variables están bien representadas en el plano principal, con excepción de *enf_cardiovasculares* y *enf_sist_digestivo*, que muestran una menor contribución. Las Figuras [24](#fig-contribuciones_1990) y [25](#fig-cos2_1990) muestran, respectivamente, las contribuciones individuales de las variables y su calidad de representación en el plano.
 
-:::{#fig-contribuciones_1990 fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
+::: {#fig-contribuciones_1990 fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
 ```{r contribuciones plano principal 1990}
 fviz_contrib(data_ACP_1990, choice = "var", axes = 1:2,)
 ```
 :::
 
-:::{#fig-cos2_1990 fig-cap="Calidad de representación ($\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
+::: {#fig-cos2_1990 fig-cap="Calidad de representación ($\\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
 ```{r grafico barras cos2 1990}
 fviz_cos2(data_ACP_1990, choice = "var", axes = 1:2)
 ```
@@ -1260,7 +1252,7 @@ new_data_1990_clr <- new_data_1990_clr %>%
   mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
-:::{#fig-biplot_1990 fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
+::: {#fig-biplot_1990 fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
 ```{r biplots dim1-dim2 1990, fig.width=10, fig.height=10}
 biplot_1990 <- fviz_pca_biplot(data_ACP_1990, 
                 col.var = "darkgrey",
@@ -1279,6 +1271,7 @@ biplot_1990 <- fviz_pca_biplot(data_ACP_1990,
 biplot_1990
 ```
 :::
+
 En este gráfico no podemos ver una agrupación clara.
 
 #### ACP 2019
@@ -1373,7 +1366,7 @@ vaps_2019
 
 A partir de esta tabla de valores podemos ver que con dos componentes principales nos permiten explicar aproximadamente el $60\%$ de la variación total. Una manera más detallada de ver el peso de estas componentes es mediante la @fig-var_2019 donde se muestra un diagrama de barras donde a cada dimensión le asociamos el porcentaje de variación que explica:
 
-:::{#fig-var_2019 fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de los datos de 2019." fig-cap-location="bottom"}
+::: {#fig-var_2019 fig-cap="Porcentaje de varianza explicada por cada componente principal a partir de los datos de 2019." fig-cap-location="bottom"}
 ```{r porcentajes variacion 2019}
 fviz_eig(data_ACP_2019, addlabels = TRUE, ylim = c(0,100))
 ```
@@ -1381,7 +1374,7 @@ fviz_eig(data_ACP_2019, addlabels = TRUE, ylim = c(0,100))
 
 A partir de la cuarta componente, el incremento en la varianza explicada es marginal, por lo que es razonable trabajar con dos o tres componentes. El círculo de correlaciones (@fig-circ_cor_2019) permite visualizar las relaciones entre variables y su representación en el plano principal.
 
-:::{#fig-circ_cor_2019 fig-cap="Círculo de correlaciones del ACP calculado a partir de los datos de 2019." fig-cap-location="bottom"}
+::: {#fig-circ_cor_2019 fig-cap="Círculo de correlaciones del ACP calculado a partir de los datos de 2019." fig-cap-location="bottom"}
 ```{r circulo correlacion dim1-dim2 2019}
 fviz_pca_var(data_ACP_2019, col.var = "contrib", repel = TRUE, axes = 1:2)
 ```
@@ -1389,13 +1382,13 @@ fviz_pca_var(data_ACP_2019, col.var = "contrib", repel = TRUE, axes = 1:2)
 
 La mayoría de variables están bien representadas y contribuyen aproximadamente lo mismo al plano principal, exceptuando *enf_sist_digestivo* y *enf_cardiovasculares* debido al poco peso que tienen. Las Figuras [30](#fig-contribuciones_2019) y [31](#fig-cos2_2019) muestran, respectivamente, las contribuciones individuales de las variables y su calidad de representación en el plano.
 
-:::{#fig-contribuciones_2019 fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
+::: {#fig-contribuciones_2019 fig-cap="Contribuciones de cada variable al plano principal del ACP." fig-cap-location="bottom"}
 ```{r contribuciones plano principal 2019}
 fviz_contrib(data_ACP_2019, choice = "var", axes = 1:2,)
 ```
 :::
 
-:::{#fig-cos2_2019 fig-cap="Calidad de representación ($\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
+::: {#fig-cos2_2019 fig-cap="Calidad de representación ($\\cos^2$) en el plano principal del ACP." fig-cap-location="bottom"}
 ```{r grafico barras cos2 2019}
 fviz_cos2(data_ACP_2019, choice = "var", axes = 1:2)
 ```
@@ -1418,7 +1411,7 @@ new_data_2019_clr <- new_data_2019_clr %>%
   mutate(grupo_idh = factor(grupo_idh, levels = c("Bajo", "Medio Bajo", "Medio Alto", "Alto")))
 ```
 
-:::{#fig-biplot_2019 fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
+::: {#fig-biplot_2019 fig-cap="Representación de los países en el plano principal del ACP, coloreados según su IDH." fig-cap-location="bottom"}
 ```{r biplots dim1-dim2 2019, fig.width=10, fig.height=10}
 biplot_2019 <- fviz_pca_biplot(data_ACP_2019, 
                 col.var = "darkgrey",
@@ -1437,6 +1430,7 @@ biplot_2019 <- fviz_pca_biplot(data_ACP_2019,
 biplot_2019
 ```
 :::
+
 En este gráfico tampoco podemos ver una agrupación clara.
 
 Para acabar veamos juntos los tres gráficos que hemos analizado:
@@ -1637,5 +1631,148 @@ m_22_2019
 -   $m_{2,2} =$ `r m_22_2019`
 
 Con estos valores de los coeficientes de precisión vemos que hay una buena representación.
+
+### A.3 Mapas adicionales
+
+```{r}
+mapa_nervioso <- new_data %>%
+  group_by(pais) %>%
+  summarise(
+    media_nervioso = mean(enf_sist_nervioso, na.rm = TRUE),
+    var_nervioso    = var(enf_sist_nervioso, na.rm = TRUE)
+  )
+
+europe_map <- europe %>%
+  left_join(mapa_nervioso, by = c("name_es" = "pais"))
+
+p1 = ggplot(europe_map) +
+  geom_sf(aes(fill = media_nervioso), color = "black", linewidth = 0.2) +
+  scale_fill_gradient2(
+    low = "blue", mid = "white", high = "red",
+    na.value = "grey60",
+    name = "Promedio")  +
+  coord_sf(
+    xlim = c(-25, 60),  # longitud: desde Portugal hasta parte de Rusia
+    ylim = c(35, 72)    # latitud: desde el sur de Europa hasta Escandinavia
+  ) +
+  theme_minimal()
+```
+
+```{r}
+p2 = ggplot(europe_map) +
+  geom_sf(aes(fill = var_nervioso), color = "black", linewidth = 0.2) +
+ scale_fill_gradient2(
+    midpoint = 1,
+    low = "blue", mid = "white", high = "red",
+    na.value = "grey60",
+    name = "Varianza",
+  ) +
+  coord_sf(
+    xlim = c(-25, 60),  # longitud: desde Portugal hasta parte de Rusia
+    ylim = c(35, 72)    # latitud: desde el sur de Europa hasta Escandinavia
+  ) +
+  theme_minimal()
+
+lims <- range(
+  c(p1$data$media_nervioso, p2$data$var_nervioso),
+  na.rm = TRUE
+)
+
+scale_fill <- scale_fill_gradient2(
+    low = "blue", mid = "white", high = "red",
+    na.value = "grey60",
+    oob = scales::squish
+  )
+
+
+
+
+p1 <- p1 + scale_fill
+p2 <- p2 + scale_fill
+p3 <- cowplot::plot_grid( p1, p2)
+
+ggsave("diapo1.pdf", p3, width = 12, height = 6)
+```
+
+\
+
+```{r}
+esp <- new_data %>%
+  filter(pais == "España") %>%
+  dplyr::select(año, enf_sist_nervioso, enf_cardiovasculares)
+
+k <- max(esp$enf_sist_nervioso, na.rm = TRUE) /
+  max(esp$enf_cardiovasculares, na.rm = TRUE)
+
+
+p4 <- ggplot(esp) +
+  geom_line(aes(x = año, y = enf_sist_nervioso, color = "Sistema nervioso"),
+            linewidth = 1.1) +
+  geom_point(aes(x = año, y = enf_sist_nervioso, color = "Sistema nervioso"),
+             size = 2) +
+  
+  geom_line(aes(x = año, y = enf_cardiovasculares * k, 
+                color = "Cardiovasculares"),
+            linewidth = 1.1, linetype = "dashed") +
+  geom_point(aes(x = año, y = enf_cardiovasculares * k, 
+                 color = "Cardiovasculares"),
+             size = 2) +
+  
+  scale_y_continuous(
+    name = "Muertes – Sistema nervioso",
+    sec.axis = sec_axis(~ . / k, name = "Muertes – Cardiovasculares")
+  ) +
+  
+  scale_color_manual(
+    values = c(
+      "Sistema nervioso" = "#1b9e77",
+      "Cardiovasculares" = "#d95f02"
+    )
+  ) +
+  
+  labs(
+    x = "Año",
+    color = "Causa",
+    title = "España: muertes por causa (eje secundario)"
+  ) +
+  theme_minimal()
+
+
+ggsave("diapo2.pdf", p4, width = 12, height = 6)
+```
+
+```{r}
+esp_100 <- new_data %>%
+  filter(pais == "España") %>%
+  dplyr::select(año, enf_infec_paras:enf_cronicas) %>%
+  tidyr::pivot_longer(
+    -año,
+    names_to = "causa",
+    values_to = "muertes"
+  ) %>%
+  group_by(año) %>%
+  mutate(
+    prop = muertes / sum(muertes, na.rm = TRUE),
+    año= round(año, 2)
+  )
+
+
+p5 <- ggplot(esp_100, aes(x = factor(año), y = prop, fill = causa)) +
+  geom_col(width = 0.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Año",
+    y = "Porcentaje del total",
+    fill = "Causa",
+    title = "España: distribución porcentual de muertes por causa"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+ggsave("diapo3.pdf", p5, width = 12, height = 6)
+```
 
 ## Bibliografía
