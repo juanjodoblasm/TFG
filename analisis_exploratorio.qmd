@@ -1634,7 +1634,7 @@ Con estos valores de los coeficientes de precisión vemos que hay una buena repr
 
 ### A.3 Mapas adicionales
 
-```{r}
+```{r mapa media y varianza temporales}
 mapa_nervioso <- new_data %>%
   group_by(pais) %>%
   summarise(
@@ -1642,30 +1642,57 @@ mapa_nervioso <- new_data %>%
     var_nervioso    = var(enf_sist_nervioso, na.rm = TRUE)
   )
 
-europe_map <- europe %>%
+europe <- europe %>%
   left_join(mapa_nervioso, by = c("name_es" = "pais"))
 
-p1 = ggplot(europe_map) +
+lista_valores_NA <- mapa_nervioso %>% filter(pais %in% c("Italia", "Reino Unido", "Austria", "Serbia",
+                                                                       "Finlandia", "Dinamarca",
+                                                                       "República de Macedonia", "Irlanda (isla)",
+                                                                       "Georgia (desambiguación)", "Republica Checa",
+                                                                       "Chipre", "Bosnia-Herzegovina")) %>% 
+  # Estimación Alemania
+  add_row(pais = "Alemania", media_nervioso = 35438., var_nervioso = 86870965.)
+
+valores_NA_media = c(lista_valores_NA$media_nervioso[8], lista_valores_NA$media_nervioso[9],
+                     lista_valores_NA$media_nervioso[9], lista_valores_NA$media_nervioso[9],
+                     lista_valores_NA$media_nervioso[8], lista_valores_NA$media_nervioso[11],
+                     lista_valores_NA$media_nervioso[1], lista_valores_NA$media_nervioso[12],
+                     lista_valores_NA$media_nervioso[7], lista_valores_NA$media_nervioso[13],
+                     lista_valores_NA$media_nervioso[6], lista_valores_NA$media_nervioso[5],
+                     lista_valores_NA$media_nervioso[4], lista_valores_NA$media_nervioso[10],
+                     lista_valores_NA$media_nervioso[3], lista_valores_NA$media_nervioso[2])
+
+valores_NA_var = c(lista_valores_NA$var_nervioso[8], lista_valores_NA$var_nervioso[9],
+                     lista_valores_NA$var_nervioso[9], lista_valores_NA$var_nervioso[9],
+                     lista_valores_NA$var_nervioso[8], lista_valores_NA$var_nervioso[11],
+                     lista_valores_NA$var_nervioso[1], lista_valores_NA$var_nervioso[12],
+                     lista_valores_NA$var_nervioso[7], lista_valores_NA$var_nervioso[13],
+                     lista_valores_NA$var_nervioso[6], lista_valores_NA$var_nervioso[5],
+                     lista_valores_NA$var_nervioso[4], lista_valores_NA$var_nervioso[10],
+                     lista_valores_NA$var_nervioso[3], lista_valores_NA$var_nervioso[2])
+
+europe$media_nervioso[indices_NA] = valores_NA_media
+europe$var_nervioso[indices_NA] = valores_NA_var
+
+# Mapa medias
+p1 = ggplot(europe) +
   geom_sf(aes(fill = media_nervioso), color = "black", linewidth = 0.2) +
-  scale_fill_gradient2(
-    low = "blue", mid = "white", high = "red",
+  scale_fill_gradientn(colors = c("white", "lightpink", "red", "red3", "darkred"),
     na.value = "grey60",
-    name = "Promedio")  +
+    name = "Media temporal")  +
   coord_sf(
     xlim = c(-25, 60),  # longitud: desde Portugal hasta parte de Rusia
     ylim = c(35, 72)    # latitud: desde el sur de Europa hasta Escandinavia
   ) +
   theme_minimal()
-```
 
-```{r}
-p2 = ggplot(europe_map) +
+# Mapa varianzas Mapa
+p2 = ggplot(europe) +
   geom_sf(aes(fill = var_nervioso), color = "black", linewidth = 0.2) +
- scale_fill_gradient2(
-    midpoint = 1,
-    low = "blue", mid = "white", high = "red",
+ scale_fill_gradientn(
+    colors = c("white", "lightpink", "red", "red3", "darkred", "black"),
     na.value = "grey60",
-    name = "Varianza",
+    name = "Varianza temporal",
   ) +
   coord_sf(
     xlim = c(-25, 60),  # longitud: desde Portugal hasta parte de Rusia
@@ -1673,30 +1700,12 @@ p2 = ggplot(europe_map) +
   ) +
   theme_minimal()
 
-lims <- range(
-  c(p1$data$media_nervioso, p2$data$var_nervioso),
-  na.rm = TRUE
-)
-
-scale_fill <- scale_fill_gradient2(
-    low = "blue", mid = "white", high = "red",
-    na.value = "grey60",
-    oob = scales::squish
-  )
-
-
-
-
-p1 <- p1 + scale_fill
-p2 <- p2 + scale_fill
 p3 <- cowplot::plot_grid( p1, p2)
 
-ggsave("diapo1.pdf", p3, width = 12, height = 6)
+p3
 ```
 
-\
-
-```{r}
+```{r mapa ejemplo tendencia temporal España}
 esp <- new_data %>%
   filter(pais == "España") %>%
   dplyr::select(año, enf_sist_nervioso, enf_cardiovasculares)
@@ -1713,7 +1722,7 @@ p4 <- ggplot(esp) +
   
   geom_line(aes(x = año, y = enf_cardiovasculares * k, 
                 color = "Cardiovasculares"),
-            linewidth = 1.1, linetype = "dashed") +
+            linewidth = 1.1) +
   geom_point(aes(x = año, y = enf_cardiovasculares * k, 
                  color = "Cardiovasculares"),
              size = 2) +
@@ -1737,8 +1746,7 @@ p4 <- ggplot(esp) +
   ) +
   theme_minimal()
 
-
-ggsave("diapo2.pdf", p4, width = 12, height = 6)
+p4
 ```
 
 ```{r}
@@ -1771,8 +1779,7 @@ p5 <- ggplot(esp_100, aes(x = factor(año), y = prop, fill = causa)) +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
-
-ggsave("diapo3.pdf", p5, width = 12, height = 6)
+p5
 ```
 
 ## Bibliografía
